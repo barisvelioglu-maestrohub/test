@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -141,11 +140,12 @@ func (h *LicenseHandler) GetPublicKey(c echo.Context) error {
 }
 
 func (h *LicenseHandler) GetRevocations(c echo.Context) error {
-	query := `
-		SELECT r.license_id, r.created_at
-		FROM revocations r
-		ORDER BY r.created_at DESC
-		LIMIT 1000`
+	// TODO: Implement actual query to get revoked licenses
+	// query := `
+	// 	SELECT r.license_id, r.created_at
+	// 	FROM revocations r
+	// 	ORDER BY r.created_at DESC
+	// 	LIMIT 1000`
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"updated_at": "2025-09-23T10:00:00Z",
@@ -182,7 +182,8 @@ func (h *LicenseHandler) ListLicenses(c echo.Context) error {
 		limit = 20
 	}
 
-	offset := (page - 1) * limit
+	// offset := (page - 1) * limit
+	// TODO: Use offset to implement actual pagination
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"licenses": []models.License{},

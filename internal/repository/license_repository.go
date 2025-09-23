@@ -2,12 +2,10 @@ package repository
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
 	"github.com/maestrohub/license-server/pkg/models"
 )
 

@@ -67,8 +67,9 @@ func (h *LicenseRequestHandler) RequestLicense(c echo.Context) error {
 	// Check if customer already has an active license
 	existingLicense, err := h.checkExistingLicense(req.Email, req.Product)
 	if err == nil && existingLicense != nil {
-		// If license exists and is valid, resend it
-		if existingLicense.Status == models.LicenseStatusActive {
+		// If license exists and is still valid (not expired), resend it
+		isValid := existingLicense.Lifetime || (existingLicense.ValidUntil != nil && existingLicense.ValidUntil.After(time.Now()))
+		if isValid {
 			// Resend existing license
 			if err := h.emailService.SendLicense(req.Email, existingLicense, ""); err != nil {
 				return echo.NewHTTPError(http.StatusInternalServerError, "failed to send license email")

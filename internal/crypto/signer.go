@@ -9,7 +9,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/maestrohub/license-server/pkg/models"

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jmoiron/sqlx"
 	"github.com/maestrohub/license-server/internal/crypto"
 	"github.com/maestrohub/license-server/internal/repository"
 	"github.com/maestrohub/license-server/pkg/models"
@@ -125,7 +126,7 @@ func (s *licenseService) CreateLicense(req *CreateLicenseRequest) (*models.Licen
 		Status:        models.LicenseStatusActive,
 	}
 
-	err = s.db.InTransaction(func(tx *repository.Database) error {
+	err = s.db.InTransaction(func(tx *sqlx.Tx) error {
 		if err := s.licenseRepo.Create(tx, licenseDB); err != nil {
 			return err
 		}
@@ -181,7 +182,7 @@ func (s *licenseService) ExtendLicense(id string, months int) (*models.License, 
 	newValidUntil := baseTime.AddDate(0, months, 0)
 	licenseDB.ValidUntil = &newValidUntil
 
-	err = s.db.InTransaction(func(tx *repository.Database) error {
+	err = s.db.InTransaction(func(tx *sqlx.Tx) error {
 		if err := s.licenseRepo.Update(tx, licenseDB); err != nil {
 			return err
 		}
@@ -217,7 +218,7 @@ func (s *licenseService) RevokeLicense(id string, reason string, actor string) e
 		return fmt.Errorf("license already revoked")
 	}
 
-	return s.db.InTransaction(func(tx *repository.Database) error {
+	return s.db.InTransaction(func(tx *sqlx.Tx) error {
 		if err := s.licenseRepo.UpdateStatus(tx, id, models.LicenseStatusRevoked); err != nil {
 			return err
 		}
@@ -385,7 +386,7 @@ func (s *licenseService) RequestExtension(licenseID, customerID string, months i
 		Status:          models.ExtensionRequestPending,
 	}
 
-	err = s.db.InTransaction(func(tx *repository.Database) error {
+	err = s.db.InTransaction(func(tx *sqlx.Tx) error {
 		if err := s.extensionRepo.Create(tx, request); err != nil {
 			return err
 		}
@@ -427,7 +428,7 @@ func (s *licenseService) ApproveExtensionRequest(requestID string, approvedMonth
 		return fmt.Errorf("extension cannot exceed 12 months")
 	}
 
-	return s.db.InTransaction(func(tx *repository.Database) error {
+	return s.db.InTransaction(func(tx *sqlx.Tx) error {
 		// Update request status
 		if err := s.extensionRepo.UpdateStatus(tx, requestID, models.ExtensionRequestApproved,
 			reviewedBy, notes, &approvedMonths); err != nil {
@@ -481,7 +482,7 @@ func (s *licenseService) RejectExtensionRequest(requestID string, reviewedBy, no
 		return fmt.Errorf("request is not pending")
 	}
 
-	return s.db.InTransaction(func(tx *repository.Database) error {
+	return s.db.InTransaction(func(tx *sqlx.Tx) error {
 		if err := s.extensionRepo.UpdateStatus(tx, requestID, models.ExtensionRequestRejected,
 			reviewedBy, notes, nil); err != nil {
 			return err
