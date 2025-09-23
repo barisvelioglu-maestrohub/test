@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -140,16 +141,27 @@ func (h *LicenseHandler) GetPublicKey(c echo.Context) error {
 }
 
 func (h *LicenseHandler) GetRevocations(c echo.Context) error {
-	// TODO: Implement actual query to get revoked licenses
-	// query := `
-	// 	SELECT r.license_id, r.created_at
-	// 	FROM revocations r
-	// 	ORDER BY r.created_at DESC
-	// 	LIMIT 1000`
+	// Get all revoked license IDs
+	revokedLicenses, err := h.licenseService.GetRevokedLicenses()
+	if err != nil {
+		// Return empty list on error (fail open for offline verification)
+		return c.JSON(http.StatusOK, map[string]interface{}{
+			"revoked":     []string{},
+			"updated_at":  time.Now().UTC().Format(time.RFC3339),
+			"next_update": time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339),
+		})
+	}
+
+	// Extract just the license IDs
+	licenseIDs := make([]string, 0, len(revokedLicenses))
+	for _, license := range revokedLicenses {
+		licenseIDs = append(licenseIDs, license.LicenseID)
+	}
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"updated_at": "2025-09-23T10:00:00Z",
-		"items":      []string{},
+		"revoked":     licenseIDs,
+		"updated_at":  time.Now().UTC().Format(time.RFC3339),
+		"next_update": time.Now().Add(1 * time.Hour).UTC().Format(time.RFC3339),
 	})
 }
 
@@ -174,6 +186,9 @@ func (h *LicenseHandler) VerifyLicense(c echo.Context) error {
 func (h *LicenseHandler) ListLicenses(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	status := c.QueryParam("status")
+	product := c.QueryParam("product")
+	search := c.QueryParam("search")
 
 	if page <= 0 {
 		page = 1
@@ -182,13 +197,61 @@ func (h *LicenseHandler) ListLicenses(c echo.Context) error {
 		limit = 20
 	}
 
-	// offset := (page - 1) * limit
-	// TODO: Use offset to implement actual pagination
+	offset := (page - 1) * limit
+
+	// Build filter criteria
+	filters := &service.LicenseFilters{
+		Status:  status,
+		Product: product,
+		Search:  search,
+		Offset:  offset,
+		Limit:   limit,
+	}
+
+	// Get licenses with filters
+	licenses, total, err := h.licenseService.ListLicenses(filters)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to fetch licenses")
+	}
+
+	// Convert to response format
+	licenseDTOs := make([]map[string]interface{}, 0, len(licenses))
+	for _, license := range licenses {
+		dto := map[string]interface{}{
+			"license_id":  license.LicenseID,
+			"customer_id": license.CustomerID,
+			"product":     license.Product,
+			"valid_from":  license.ValidFrom,
+			"valid_until": license.ValidUntil,
+			"lifetime":    license.Lifetime,
+			"features":    license.Features,
+			"created_at":  license.ValidFrom,
+		}
+
+		// Add status based on validity
+		if license.Lifetime {
+			dto["status"] = "active"
+		} else if license.ValidUntil != nil && license.ValidUntil.After(time.Now()) {
+			dto["status"] = "active"
+			dto["days_until_expiry"] = int(time.Until(*license.ValidUntil).Hours() / 24)
+		} else {
+			dto["status"] = "expired"
+		}
+
+		licenseDTOs = append(licenseDTOs, dto)
+	}
+
+	totalPages := (total + limit - 1) / limit
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"licenses": []models.License{},
-		"page":     page,
-		"limit":    limit,
-		"total":    0,
+		"licenses": licenseDTOs,
+		"pagination": map[string]interface{}{
+			"page":        page,
+			"limit":       limit,
+			"total":       total,
+			"total_pages": totalPages,
+			"has_next":    page < totalPages,
+			"has_prev":    page > 1,
+		},
 	})
 }

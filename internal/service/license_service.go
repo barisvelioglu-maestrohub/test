@@ -18,6 +18,8 @@ type LicenseService interface {
 	GetLicense(id string) (*models.License, error)
 	VerifyLicense(license *models.License) error
 	GetCustomerLicenses(customerID string) ([]*models.License, error)
+	ListLicenses(filters *LicenseFilters) ([]*models.License, int, error)
+	GetRevokedLicenses() ([]*models.License, error)
 
 	// Customer Management
 	GetOrCreateCustomer(email, companyName, userName string) (*models.Customer, error)
@@ -37,6 +39,14 @@ type LicenseService interface {
 
 	// Logging
 	LogLicenseRequest(licenseID string, requestData interface{}) error
+}
+
+type LicenseFilters struct {
+	Status  string
+	Product string
+	Search  string
+	Offset  int
+	Limit   int
 }
 
 type CreateLicenseRequest struct {
@@ -558,4 +568,93 @@ func (s *licenseService) LogLicenseRequest(licenseID string, requestData interfa
 	}
 
 	return s.licenseRepo.CreateEvent(s.db, event)
+}
+
+// ListLicenses returns paginated, filtered list of licenses
+func (s *licenseService) ListLicenses(filters *LicenseFilters) ([]*models.License, int, error) {
+	// Build query
+	query := `SELECT * FROM licenses WHERE 1=1`
+	args := []interface{}{}
+
+	if filters.Product != "" {
+		query += ` AND product = ?`
+		args = append(args, filters.Product)
+	}
+
+	if filters.Search != "" {
+		query += ` AND (id LIKE ? OR customer_id IN (SELECT id FROM customers WHERE email LIKE ? OR name LIKE ?))`
+		searchPattern := "%" + filters.Search + "%"
+		args = append(args, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Get total count
+	countQuery := `SELECT COUNT(*) FROM (` + query + `)`
+	var total int
+	err := s.db.Get(&total, countQuery, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Add pagination
+	query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
+	args = append(args, filters.Limit, filters.Offset)
+
+	// Execute query
+	var licensesDB []*models.LicenseDB
+	err = s.db.Select(&licensesDB, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Convert to License models
+	licenses := make([]*models.License, 0, len(licensesDB))
+	for _, ldb := range licensesDB {
+		var features map[string]interface{}
+		if err := json.Unmarshal(ldb.FeaturesJSON, &features); err != nil {
+			features = make(map[string]interface{})
+		}
+
+		license := &models.License{
+			LicenseID:    ldb.ID,
+			CustomerID:   ldb.CustomerID,
+			Product:      ldb.Product,
+			ValidFrom:    ldb.ValidFrom,
+			ValidUntil:   ldb.ValidUntil,
+			Lifetime:     ldb.Lifetime,
+			Features:     features,
+			Seats:        ldb.Seats,
+		}
+		licenses = append(licenses, license)
+	}
+
+	return licenses, total, nil
+}
+
+// GetRevokedLicenses returns all revoked licenses
+func (s *licenseService) GetRevokedLicenses() ([]*models.License, error) {
+	query := `
+		SELECT l.* 
+		FROM licenses l
+		INNER JOIN revocations r ON l.id = r.license_id
+		ORDER BY r.created_at DESC
+		LIMIT 1000
+	`
+
+	var licensesDB []*models.LicenseDB
+	err := s.db.Select(&licensesDB, query)
+	if err != nil {
+		return nil, err
+	}
+
+	licenses := make([]*models.License, 0, len(licensesDB))
+	for _, ldb := range licensesDB {
+		license := &models.License{
+			LicenseID:  ldb.ID,
+			CustomerID: ldb.CustomerID,
+			Product:    ldb.Product,
+		}
+		licenses = append(licenses, license)
+	}
+
+	return licenses, nil
 }
