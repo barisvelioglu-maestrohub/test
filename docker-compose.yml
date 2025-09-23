@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  license-server:
+    build: .
+    container_name: license-server
+    ports:
+      - "8080:8080"
+    environment:
+      - LICENSE_SERVER_ENVIRONMENT=production
+      - LICENSE_DATABASE_DSN=/data/license.db
+      - LICENSE_JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - LICENSE_EMAIL_SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - LICENSE_EMAIL_SMTP_USER=${SMTP_USER}
+      - LICENSE_EMAIL_SMTP_PASSWORD=${SMTP_PASSWORD}
+    volumes:
+      - ./data:/data
+      - ./config.yaml:/config.yaml:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: license-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:

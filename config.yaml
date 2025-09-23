@@ -1,0 +1,48 @@
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  read_timeout: "15s"
+  write_timeout: "15s"
+  shutdown_timeout: "10s"
+  base_url: "http://localhost:8080"
+  environment: "development"
+
+database:
+  driver: "sqlite3"
+  dsn: "./license.db"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: "5m"
+
+jwt:
+  secret: "your-secret-key-change-this-in-production"
+  admin_expiry: "8h"
+  portal_expiry: "24h"
+  refresh_expiry: "7d"
+
+email:
+  provider: "smtp"
+  from_email: "noreply@maestrohub.com"
+  from_name: "MaestroHUB Licensing"
+  smtp_host: "smtp.gmail.com"
+  smtp_port: 587
+  smtp_user: "your-email@gmail.com"
+  smtp_password: "your-app-password"
+
+security:
+  rate_limit_per_minute: 60
+  clock_skew_tolerance: "5m"
+  csrf_token_length: 32
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:8080"
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+logging:
+  level: "info"
+  format: "json"
+  output_path: "stdout"

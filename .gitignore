@@ -1,0 +1,55 @@
+# Binaries
+license-server
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Configuration files with secrets
+config.local.yaml
+config.production.yaml
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Log files
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Build directories
+dist/
+build/
+
+# Docker volumes
+docker-data/
+
+# Air tmp directory (hot reload)
+.air/
+tmp/
