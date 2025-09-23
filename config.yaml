@@ -18,7 +18,7 @@ jwt:
   secret: "your-secret-key-change-this-in-production"
   admin_expiry: "8h"
   portal_expiry: "24h"
-  refresh_expiry: "7d"
+  refresh_expiry: "168h"
 
 email:
   provider: "smtp"
