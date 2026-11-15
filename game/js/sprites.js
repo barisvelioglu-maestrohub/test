@@ -176,55 +176,61 @@ function tokenSprite(type, owner) {
   return (spriteCache[key] = c);
 }
 
+/* Cities are drawn from above at an angle: a walled square that fills its four tiles, corner towers, a keep in the middle
+   and room in each quarter for the army standing there. Three tiers: palisade town, walled city, citadel. */
 function citySprite(owner, level) {
   const key = 'city:' + owner + ':' + level; if (spriteCache[key]) return spriteCache[key];
   const f = fac(owner), c = mk(96, 106), x = c.getContext('2d');
-  x.translate(0, 10); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.4;
+  x.translate(0, 10); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.3;
+  const wood = level === 1, tall = level === 3;
   const lin = (x0, x1, a, b, m) => { const g = x.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); if (m) g.addColorStop(0.5, m); g.addColorStop(1, b); return g; };
-  const stone = (x0, x1) => lin(x0, x1, '#ece5d2', '#857e6c', '#c4bca7');
+  const face = (a, w) => (wood ? lin(a, a + w, '#b98a52', '#6a4622', '#93683a') : lin(a, a + w, '#e4dcc8', '#7f7866', '#bdb5a0'));
+  const topc = wood ? '#d2a366' : '#f1ebda';
   const box = (a, b, w, h, fill) => { x.fillStyle = fill; x.fillRect(a, b, w, h); x.strokeRect(a, b, w, h); };
   const poly = (pts, fill) => { x.beginPath(); pts.forEach(([p, q], i) => (i ? x.lineTo(p, q) : x.moveTo(p, q))); x.closePath(); x.fillStyle = fill; x.fill(); x.stroke(); };
-  const roof = (cx, base, w, h, a, b) => { poly([[cx - w / 2 - 2, base], [cx, base - h], [cx + w / 2 + 2, base]], a); poly([[cx, base - h], [cx + w / 2 + 2, base], [cx + 1, base]], b); };
-  const house = (a, b, w, h, ra, rb) => { box(a, b, w, h, lin(a, a + w, '#efe2c4', '#b9a987')); roof(a + w / 2, b, w, h * 0.9, ra, rb); x.fillStyle = INK; x.fillRect(a + w / 2 - 1, b + h - 5, 2.5, 5); };
-  const flag = (px, top, len = 13) => { x.beginPath(); x.moveTo(px, top + len); x.lineTo(px, top); x.stroke(); poly([[px, top], [px + 11, top + 3], [px, top + 6.5]], f.color); };
-  const cren = (a, b, w) => { for (let i = a; i < a + w - 3; i += 6) box(i, b - 4, 4, 4, stone(a, a + w)); };
-  const slit = (a, b) => { x.fillStyle = INK; x.fillRect(a, b, 2, 6); };
-  const tower = (a, top, w, bottom, rh) => { box(a, top, w, bottom - top, stone(a, a + w)); roof(a + w / 2, top, w, rh, f.color, f.dark); slit(a + w / 2 - 1, top + 6); };
-  const gate = (cx, bottom, w, h) => { x.fillStyle = INK; x.beginPath(); x.moveTo(cx - w / 2, bottom); x.lineTo(cx - w / 2, bottom - h + w / 2); x.arc(cx, bottom - h + w / 2, w / 2, Math.PI, 0); x.lineTo(cx + w / 2, bottom); x.closePath(); x.fill();
-    x.save(); x.strokeStyle = '#7a6746'; x.lineWidth = 1; for (let i = cx - w / 2 + 2.5; i < cx + w / 2; i += 3) { x.beginPath(); x.moveTo(i, bottom - h + 3); x.lineTo(i, bottom); x.stroke(); } x.restore(); };
-  const thatch = ['#d9b45a', '#a07c2e'], tile = ['#b5553a', '#7a3323'];
-  x.fillStyle = 'rgba(8,10,12,.38)'; x.beginPath(); x.ellipse(50, 88, 46, 8, 0, 0, 7); x.fill();
-  if (level === 1) {
-    const stakes = (a, b, w, h) => { for (let i = a; i < a + w; i += 5) poly([[i, b + h], [i, b + 3], [i + 2.5, b], [i + 5, b + 3], [i + 5, b + h]], lin(i, i + 5, '#b98a52', '#6f4a24')); };
-    x.fillStyle = '#8f9a56'; x.beginPath(); x.ellipse(48, 62, 42, 26, 0, 0, 7); x.fill();
-    stakes(12, 30, 72, 14);
-    house(18, 42, 17, 13, ...thatch); house(58, 40, 18, 14, ...thatch); house(38, 36, 19, 16, f.color, f.dark);
-    box(70, 20, 11, 26, lin(70, 81, '#b98a52', '#6f4a24')); roof(75.5, 20, 13, 9, ...thatch); slit(74.5, 26); flag(75.5, -1, 12);
-    house(26, 56, 16, 12, ...thatch); house(52, 57, 17, 12, ...thatch);
-    stakes(6, 66, 34, 18); stakes(56, 66, 34, 18);
-    box(40, 64, 16, 20, '#4a3520'); gate(48, 84, 11, 16); box(38, 60, 20, 5, lin(38, 58, '#b98a52', '#6f4a24'));
+  const ticks = (a, b, w, h, step, col) => { x.save(); x.strokeStyle = col; x.lineWidth = 1; for (let i = a + step; i < a + w - 1; i += step) { x.beginPath(); x.moveTo(i, b + 1); x.lineTo(i, b + h - 1); x.stroke(); } x.restore(); };
+  const rows = (a, b, w, h, step, col) => { x.save(); x.strokeStyle = col; x.lineWidth = 1; for (let r = b + step; r < b + h - 1; r += step) { x.beginPath(); x.moveTo(a + 1, r); x.lineTo(a + w - 1, r); x.stroke(); } x.restore(); };
+  const cren = (a, b, w) => { if (wood) return; for (let i = a + 1; i < a + w - 3; i += 6) box(i, b - 3, 3.5, 3, topc); };
+  const hwall = (a, b, w, topH, faceH) => { box(a, b, w, topH, topc); box(a, b + topH, w, faceH, face(a, w)); if (wood) ticks(a, b + topH, w, faceH, 4, 'rgba(40,26,10,.55)'); else rows(a, b + topH, w, faceH, 5, 'rgba(40,34,26,.3)'); cren(a, b, w); };
+  const vwall = (a, b, w, h) => { box(a, b, w, h, topc); x.fillStyle = wood ? '#93683a' : '#bdb5a0'; x.fillRect(a + w - 2.5, b + 1, 2, h - 2); if (wood) rows(a, b, w, h, 4, 'rgba(40,26,10,.45)'); else rows(a, b, w, h, 6, 'rgba(40,34,26,.3)'); };
+  const house = (a, b, w, h, ra, rb) => { box(a, b + h * 0.55, w, h * 0.45, lin(a, a + w, '#f1e4c6', '#b5a583')); box(a - 1, b, w + 2, h * 0.32, ra); box(a - 1, b + h * 0.32, w + 2, h * 0.3, rb); };
+  const flag = (px, top, len = 12) => { x.beginPath(); x.moveTo(px, top + len); x.lineTo(px, top); x.stroke(); poly([[px, top], [px + 10, top + 3], [px, top + 6]], f.color); };
+  const tower = (cx, cy, r, h, roofH) => {
+    box(cx - r, cy, 2 * r, h, face(cx - r, 2 * r)); if (wood) ticks(cx - r, cy, 2 * r, h, 4, 'rgba(40,26,10,.5)'); else rows(cx - r, cy, 2 * r, h, 5, 'rgba(40,34,26,.3)');
+    x.fillStyle = INK; x.fillRect(cx - 1, cy + 4, 2, 5);
+    poly([[cx - r - 2, cy], [cx, cy - roofH], [cx + r + 2, cy]], f.color); poly([[cx, cy - roofH], [cx + r + 2, cy], [cx + 1, cy]], f.dark);
+  };
+  const roofA = wood ? '#e0bd66' : '#c7654a', roofB = wood ? '#a5822f' : '#8a3a28';
+
+  x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(49, 93, 48, 6, 0, 0, 7); x.fill();
+  x.fillStyle = wood ? '#a3955f' : '#bcb294'; x.fillRect(6, 8, 84, 76);                       // yard
+  x.save(); x.fillStyle = wood ? 'rgba(90,70,35,.25)' : 'rgba(70,62,48,.22)'; for (let i = 0; i < 46; i++) x.fillRect(8 + (i * 37) % 80, 12 + (i * 53) % 68, 3, 2); x.restore();
+  x.fillStyle = wood ? '#b9a877' : '#d6ccb0'; x.fillRect(44, 48, 8, 36); x.fillRect(10, 44, 76, 6); // streets
+  hwall(4, 3, 88, 5, 8);                                                                         // back wall
+  vwall(3, 8, 7, 76); vwall(86, 8, 7, 76);                                                       // side walls
+  for (const [a, b] of [[14, 19], [28, 18], [58, 18], [72, 19], [13, 31], [73, 31], [13, 55], [26, 57], [60, 57], [73, 55], [14, 67], [72, 67]])
+    if (tall || !(a === 28 || a === 58)) house(a, b, 10, 10, roofA, roofB);
+  tower(11, 6, 8, 12, wood ? 8 : 11); tower(85, 6, 8, 12, wood ? 8 : 11);                         // back towers
+  if (wood) {
+    house(36, 28, 24, 22, f.color, f.dark); flag(48, 10, 14);                                     // great hall
+  } else if (!tall) {
+    box(37, 30, 22, 22, face(37, 22)); rows(37, 30, 22, 22, 5, 'rgba(40,34,26,.3)');
+    poly([[34, 30], [48, 14], [62, 30]], f.color); poly([[48, 14], [62, 30], [49, 30]], f.dark);
+    x.fillStyle = INK; x.fillRect(42, 36, 2, 6); x.fillRect(52, 36, 2, 6); flag(48, 0, 14);
   } else {
-    const tall = level === 3;
-    box(14, 30, 68, 16, stone(14, 82)); cren(14, 30, 68);
-    tower(8, tall ? 14 : 20, 14, 50, 11); tower(74, tall ? 14 : 20, 14, 50, 11);
-    x.fillStyle = '#9c9480'; x.fillRect(14, 46, 68, 20);
-    house(17, 46, 15, 12, ...tile); house(64, 46, 15, 12, ...tile);
-    if (tall) {
-      tower(30, 10, 9, 52, 12); tower(57, 10, 9, 52, 12);
-      box(37, 12, 22, 44, stone(37, 59)); cren(37, 12, 22); slit(42, 20); slit(52, 20); slit(47, 32);
-      box(43, -2, 10, 14, stone(43, 53)); roof(48, -2, 10, 9, f.color, f.dark); flag(48, -21, 11);
-      x.fillStyle = GOLD; x.fillRect(38, 27, 20, 2);
-    } else {
-      box(38, 24, 20, 30, stone(38, 58)); roof(48, 24, 20, 13, f.color, f.dark); slit(43, 31); slit(51, 31); flag(48, -1, 12);
-    }
-    house(22, 56, 14, 10, ...tile); house(60, 56, 14, 10, ...tile);
-    box(12, 62, 72, 24, stone(12, 84)); cren(12, 62, 72);
-    x.save(); x.strokeStyle = 'rgba(40,34,26,.35)'; x.lineWidth = 1; for (let r = 68; r < 86; r += 6) { x.beginPath(); x.moveTo(13, r); x.lineTo(83, r); x.stroke(); } x.restore();
-    if (tall) { x.fillStyle = GOLD; x.fillRect(13, 66, 70, 2); }
-    gate(48, 86, tall ? 14 : 12, tall ? 19 : 17);
-    tower(3, tall ? 40 : 46, 16, 88, tall ? 15 : 12); tower(77, tall ? 40 : 46, 16, 88, tall ? 15 : 12);
-    if (tall) { flag(11, 12, 13); flag(85, 12, 13); box(34, 58, 6, 28, stone(34, 40)); box(56, 58, 6, 28, stone(56, 62)); cren(33, 58, 9); cren(55, 58, 9); }
+    tower(34, 26, 5, 26, 10); tower(62, 26, 5, 26, 10);
+    box(36, 20, 24, 34, face(36, 24)); rows(36, 20, 24, 34, 5, 'rgba(40,34,26,.3)'); cren(36, 20, 24);
+    x.fillStyle = GOLD; x.fillRect(37, 31, 22, 2); x.fillStyle = INK; x.fillRect(41, 37, 2, 7); x.fillRect(47, 37, 2, 7); x.fillRect(53, 37, 2, 7);
+    box(42, 6, 12, 14, face(42, 12)); poly([[40, 6], [48, -6], [56, 6]], f.color); poly([[48, -6], [56, 6], [49, 6]], f.dark); flag(48, -19, 13);
+    tower(6.5, 40, 6, 12, 9); tower(89.5, 40, 6, 12, 9);
   }
+  hwall(4, 76, 88, 5, tall ? 13 : 11);                                                            // front wall
+  if (tall) { x.fillStyle = GOLD; x.fillRect(5, 83, 86, 1.8); }
+  const gw = tall ? 14 : 12, gb = tall ? 94 : 92;
+  x.fillStyle = INK; x.beginPath(); x.moveTo(48 - gw / 2, gb); x.lineTo(48 - gw / 2, gb - 8); x.arc(48, gb - 8, gw / 2, Math.PI, 0); x.lineTo(48 + gw / 2, gb); x.closePath(); x.fill();
+  ticks(48 - gw / 2, gb - 12, gw, 12, 3, wood ? '#8a6a3a' : '#7a6746');
+  tower(11, 72, 9, tall ? 23 : 21, wood ? 9 : tall ? 15 : 12); tower(85, 72, 9, tall ? 23 : 21, wood ? 9 : tall ? 15 : 12); // front towers
+  if (tall) { flag(11, 44, 13); flag(85, 44, 13); }
   return (spriteCache[key] = c);
 }
 
