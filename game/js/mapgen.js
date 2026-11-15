@@ -60,20 +60,20 @@ function genMap() {
     t.push(row);
   }
   const cities = [];
-  const caps = [[7, 6], [W - 8, 6], [7, H - 7], [W - 8, H - 7]];
+  const caps = [[6, 5], [W - 8, 5], [6, H - 7], [W - 8, H - 7]];
   caps.forEach(([cx, cy], i) => {
-    for (let y = cy - 2; y <= cy + 2; y++) for (let x = cx - 2; x <= cx + 2; x++)
-      if (t[y][x] === 'w' || t[y][x] === 'm' || Math.max(Math.abs(x - cx), Math.abs(y - cy)) <= 1) t[y][x] = 'g';
+    for (let y = cy - 2; y <= cy + 3; y++) for (let x = cx - 2; x <= cx + 3; x++)
+      if (t[y][x] === 'w' || t[y][x] === 'm' || (x >= cx - 1 && x <= cx + 2 && y >= cy - 1 && y <= cy + 2)) t[y][x] = 'g';
     cities.push({ x: cx, y: cy, cap: i });
   });
   const far = (x, y, list, min) => list.every(c => Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) >= min);
   for (let tries = 0; tries < 6000 && cities.length < 4 + 15; tries++) {
-    const x = 3 + Math.floor(rng() * (W - 6)), y = 3 + Math.floor(rng() * (H - 6));
-    if (t[y][x] === 'w' || t[y][x] === 'm') continue;
-    if (!far(x, y, cities, 6)) continue;
+    const x = 3 + Math.floor(rng() * (W - 7)), y = 3 + Math.floor(rng() * (H - 7));
+    if ([[0, 0], [1, 0], [0, 1], [1, 1]].some(([a, b]) => t[y + b][x + a] === 'w' || t[y + b][x + a] === 'm')) continue;
+    if (!far(x, y, cities, 7)) continue;
     cities.push({ x, y, cap: -1 });
   }
-  cities.forEach(c => { t[c.y][c.x] = 'g'; });
+  cities.forEach(c => { t[c.y][c.x] = t[c.y][c.x + 1] = t[c.y + 1][c.x] = t[c.y + 1][c.x + 1] = 'g'; });
 
   // Roads: minimum spanning tree over the cities plus each city's nearest neighbour.
   const road = []; for (let y = 0; y < H; y++) road.push(new Array(W).fill(false));
@@ -126,11 +126,11 @@ function genMap() {
   for (let tries = 0; tries < 6000 && ruins.length < 10; tries++) {
     const x = 2 + Math.floor(rng() * (W - 4)), y = 2 + Math.floor(rng() * (H - 4));
     if (!reach[y * W + x] || road[y][x] || t[y][x] === 'w') continue;
-    if (!far(x, y, cities, 3) || !far(x, y, ruins, 5)) continue;
+    if (!far(x, y, cities, 4) || !far(x - 1, y - 1, cities, 4) || !far(x, y, ruins, 5)) continue;
     ruins.push({ x, y });
   }
   const cityGrid = new Int16Array(W * H).fill(-1);
-  cities.forEach((c, i) => { cityGrid[c.y * W + c.x] = i; });
+  cities.forEach((c, i) => { cityGrid[c.y * W + c.x] = cityGrid[c.y * W + c.x + 1] = cityGrid[(c.y + 1) * W + c.x] = cityGrid[(c.y + 1) * W + c.x + 1] = i; });
   const ruinGrid = new Int16Array(W * H).fill(-1);
   ruins.forEach((r, i) => { ruinGrid[r.y * W + r.x] = i; });
   return { t, road, cities, ruins, cityGrid, ruinGrid, rng };

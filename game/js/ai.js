@@ -12,7 +12,13 @@ function aiEconomy(p) {
     const choice = Math.random() < 0.3 ? pick(opts) : opts[0];
     setProduction(c, choice);
   }
-  for (const c of mine) if (c.level < 4 && pl.gold >= upgradeCost(c) + 160) upgradeCity(c);
+  for (const c of mine) if (c.level < 3 && pl.gold >= upgradeCost(c) + 160) upgradeCity(c);
+}
+
+function aiCityTile(dm, c) {
+  let best = { d: Infinity, x: c.x, y: c.y };
+  for (const [a, b] of CITY_TILES) { const d = dm.dist[idx(c.x + a, c.y + b)]; if (d < best.d) best = { d, x: c.x + a, y: c.y + b }; }
+  return best;
 }
 
 function aiGarrison(p, city) {
@@ -29,7 +35,7 @@ async function aiStack(p, s) {
   let movers = s.units.filter(u => u.mp >= 2);
   if (city && city.owner === p) {
     const need = aiGarrison(p, city);
-    const sorted = s.units.slice().sort((a, b) => (a.hero ? 50 : 0) + uStr(a) - ((b.hero ? 50 : 0) + uStr(b)));
+    const sorted = cityUnits(city).sort((a, b) => (a.hero ? 50 : 0) + uStr(a) - ((b.hero ? 50 : 0) + uStr(b)));
     const stay = new Set(sorted.slice(0, need).map(u => u.id));
     movers = movers.filter(u => !stay.has(u.id));
   } else if (movers.length < s.units.length) return; // keep field armies together
@@ -38,8 +44,8 @@ async function aiStack(p, s) {
   const dm = dijkstraMap(movers, p, s.x, s.y);
   const hero = movers.find(u => u.hero), cands = [];
   for (const c of G.cities) {
-    if (c.owner === p) continue; const d = dm.dist[idx(c.x, c.y)]; if (d === Infinity) continue;
-    cands.push({ x: c.x, y: c.y, d, v: (c.capital >= 0 ? 260 : 110) + 30 * c.level, city: c });
+    if (c.owner === p) continue; const near = aiCityTile(dm, c), d = near.d; if (d === Infinity) continue;
+    cands.push({ x: near.x, y: near.y, d, v: (c.capital >= 0 ? 260 : 110) + 30 * c.level, city: c });
   }
   for (const o of G.stacks) {
     if (o.owner === p || o.owner < 0 || cityAt(o.x, o.y)) continue; const d = dm.dist[idx(o.x, o.y)]; if (d === Infinity) continue;
@@ -53,10 +59,10 @@ async function aiStack(p, s) {
   cands.sort((a, b) => b.score - a.score);
   let target = null;
   for (const c of cands.slice(0, 6)) {
-    const def = stackAt(c.x, c.y);
-    if (def && def.owner !== p) {
+    const def = stackAt(c.x, c.y), defU = c.city ? cityUnits(c.city) : def && def.owner !== p ? def.units : [];
+    if (defU.length) {
       const need = movers.length >= 6 ? 0.55 : 0.68;
-      if (estimateWin(movers, def.units, c.x, c.y, c.city || null) < need) continue;
+      if (estimateWin(movers, defU, c.x, c.y, c.city || null) < need) continue;
     } else if (c.ruin && def) continue;
     target = c; break;
   }
@@ -65,11 +71,11 @@ async function aiStack(p, s) {
   else if (!(city && city.owner === p)) {
     // Nothing worth attacking: fall back to the nearest friendly city and regroup.
     let best = null;
-    for (const c of G.cities) { if (c.owner !== p) continue; const d = dm.dist[idx(c.x, c.y)]; if (d < Infinity && (!best || d < best.d)) best = { c, d }; }
-    if (best) path = pathTo(dm, best.c.x, best.c.y);
+    for (const c of G.cities) { if (c.owner !== p) continue; const near = aiCityTile(dm, c); if (near.d < Infinity && (!best || near.d < best.d)) best = near; }
+    if (best) path = pathTo(dm, best.x, best.y);
   }
   if (!path || !path.length) return;
-  if (target && hero && hero.hero.mana >= 5 && !hero.bless && stackAt(target.x, target.y) && target.d <= Math.min(...movers.map(u => u.mp))) {
+  if (target && hero && hero.hero.mana >= 5 && !hero.bless && (target.city ? cityUnits(target.city).length : stackAt(target.x, target.y)) && target.d <= Math.min(...movers.map(u => u.mp))) {
     movers.forEach(u => { u.bless = true; }); hero.hero.mana -= 5;
   }
   const end = await moveGroup(s, movers.map(u => u.id), path, AUTO ? 0 : 28);

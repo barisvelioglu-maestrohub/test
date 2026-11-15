@@ -178,41 +178,71 @@ function tokenSprite(type, owner) {
 
 function citySprite(owner, level) {
   const key = 'city:' + owner + ':' + level; if (spriteCache[key]) return spriteCache[key];
-  const f = fac(owner), c = mk(64, 64), x = c.getContext('2d'), ink = '#221d18';
-  const stone = (x0, x1) => { const g = x.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, '#e6dfcc'); g.addColorStop(0.55, '#c2baa5'); g.addColorStop(1, '#8a8371'); return g; };
-  const box = (a, b, w, h) => { x.fillStyle = stone(a, a + w); x.fillRect(a, b, w, h); x.strokeStyle = ink; x.lineWidth = 1.5; x.strokeRect(a, b, w, h); };
-  const cren = (a, b, w) => { for (let i = a; i < a + w - 2; i += 6) { x.fillStyle = stone(a, a + w); x.fillRect(i, b - 4, 4, 4); x.strokeStyle = ink; x.lineWidth = 1; x.strokeRect(i, b - 4, 4, 4); } };
-  const roof = (cx, base, w, h) => {
-    x.beginPath(); x.moveTo(cx - w / 2 - 2, base); x.lineTo(cx, base - h); x.lineTo(cx + w / 2 + 2, base); x.closePath(); x.fillStyle = f.color; x.fill();
-    x.beginPath(); x.moveTo(cx, base - h); x.lineTo(cx + w / 2 + 2, base); x.lineTo(cx + 1, base); x.closePath(); x.fillStyle = f.dark; x.fill();
-    x.beginPath(); x.moveTo(cx - w / 2 - 2, base); x.lineTo(cx, base - h); x.lineTo(cx + w / 2 + 2, base); x.closePath(); x.strokeStyle = ink; x.lineWidth = 1.5; x.stroke();
-  };
-  const slit = (a, b) => { x.fillStyle = ink; x.fillRect(a, b, 2, 5); };
-  const flag = (px, top) => { x.strokeStyle = ink; x.lineWidth = 1.5; x.beginPath(); x.moveTo(px, top + 12); x.lineTo(px, top); x.stroke();
-    x.beginPath(); x.moveTo(px, top); x.lineTo(px + 10, top + 3); x.lineTo(px, top + 6); x.closePath(); x.fillStyle = f.color; x.fill(); x.lineWidth = 1; x.stroke(); };
-  x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(34, 58, 29, 6, 0, 0, 7); x.fill();
-  if (level >= 2) { box(22, 18, 20, 24); roof(32, 18, 20, level >= 3 ? 14 : 9); slit(27, 24); slit(35, 24); }
-  if (level >= 3) flag(32, level >= 4 ? -2 : 0);
-  box(10, 36, 44, 20); cren(10, 36, 44);
-  if (level >= 4) { x.fillStyle = '#e8c04a'; x.fillRect(11, 41, 42, 2); }
-  x.fillStyle = ink; x.beginPath(); x.moveTo(27, 56); x.lineTo(27, 47); x.arc(32, 47, 5, Math.PI, 0); x.lineTo(37, 56); x.closePath(); x.fill();
-  x.strokeStyle = '#6b5a3c'; x.lineWidth = 1; for (let i = 29; i < 37; i += 3) { x.beginPath(); x.moveTo(i, 44); x.lineTo(i, 56); x.stroke(); }
-  box(4, 28, 13, 29); roof(10.5, 28, 13, 11); slit(9, 36);
-  box(47, 28, 13, 29); roof(53.5, 28, 13, 11); slit(52, 36);
-  if (level >= 4) { flag(10.5, 6); flag(53.5, 6); }
+  const f = fac(owner), c = mk(96, 106), x = c.getContext('2d');
+  x.translate(0, 10); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.4;
+  const lin = (x0, x1, a, b, m) => { const g = x.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); if (m) g.addColorStop(0.5, m); g.addColorStop(1, b); return g; };
+  const stone = (x0, x1) => lin(x0, x1, '#ece5d2', '#857e6c', '#c4bca7');
+  const box = (a, b, w, h, fill) => { x.fillStyle = fill; x.fillRect(a, b, w, h); x.strokeRect(a, b, w, h); };
+  const poly = (pts, fill) => { x.beginPath(); pts.forEach(([p, q], i) => (i ? x.lineTo(p, q) : x.moveTo(p, q))); x.closePath(); x.fillStyle = fill; x.fill(); x.stroke(); };
+  const roof = (cx, base, w, h, a, b) => { poly([[cx - w / 2 - 2, base], [cx, base - h], [cx + w / 2 + 2, base]], a); poly([[cx, base - h], [cx + w / 2 + 2, base], [cx + 1, base]], b); };
+  const house = (a, b, w, h, ra, rb) => { box(a, b, w, h, lin(a, a + w, '#efe2c4', '#b9a987')); roof(a + w / 2, b, w, h * 0.9, ra, rb); x.fillStyle = INK; x.fillRect(a + w / 2 - 1, b + h - 5, 2.5, 5); };
+  const flag = (px, top, len = 13) => { x.beginPath(); x.moveTo(px, top + len); x.lineTo(px, top); x.stroke(); poly([[px, top], [px + 11, top + 3], [px, top + 6.5]], f.color); };
+  const cren = (a, b, w) => { for (let i = a; i < a + w - 3; i += 6) box(i, b - 4, 4, 4, stone(a, a + w)); };
+  const slit = (a, b) => { x.fillStyle = INK; x.fillRect(a, b, 2, 6); };
+  const tower = (a, top, w, bottom, rh) => { box(a, top, w, bottom - top, stone(a, a + w)); roof(a + w / 2, top, w, rh, f.color, f.dark); slit(a + w / 2 - 1, top + 6); };
+  const gate = (cx, bottom, w, h) => { x.fillStyle = INK; x.beginPath(); x.moveTo(cx - w / 2, bottom); x.lineTo(cx - w / 2, bottom - h + w / 2); x.arc(cx, bottom - h + w / 2, w / 2, Math.PI, 0); x.lineTo(cx + w / 2, bottom); x.closePath(); x.fill();
+    x.save(); x.strokeStyle = '#7a6746'; x.lineWidth = 1; for (let i = cx - w / 2 + 2.5; i < cx + w / 2; i += 3) { x.beginPath(); x.moveTo(i, bottom - h + 3); x.lineTo(i, bottom); x.stroke(); } x.restore(); };
+  const thatch = ['#d9b45a', '#a07c2e'], tile = ['#b5553a', '#7a3323'];
+  x.fillStyle = 'rgba(8,10,12,.38)'; x.beginPath(); x.ellipse(50, 88, 46, 8, 0, 0, 7); x.fill();
+  if (level === 1) {
+    const stakes = (a, b, w, h) => { for (let i = a; i < a + w; i += 5) poly([[i, b + h], [i, b + 3], [i + 2.5, b], [i + 5, b + 3], [i + 5, b + h]], lin(i, i + 5, '#b98a52', '#6f4a24')); };
+    x.fillStyle = '#8f9a56'; x.beginPath(); x.ellipse(48, 62, 42, 26, 0, 0, 7); x.fill();
+    stakes(12, 30, 72, 14);
+    house(18, 42, 17, 13, ...thatch); house(58, 40, 18, 14, ...thatch); house(38, 36, 19, 16, f.color, f.dark);
+    box(70, 20, 11, 26, lin(70, 81, '#b98a52', '#6f4a24')); roof(75.5, 20, 13, 9, ...thatch); slit(74.5, 26); flag(75.5, -1, 12);
+    house(26, 56, 16, 12, ...thatch); house(52, 57, 17, 12, ...thatch);
+    stakes(6, 66, 34, 18); stakes(56, 66, 34, 18);
+    box(40, 64, 16, 20, '#4a3520'); gate(48, 84, 11, 16); box(38, 60, 20, 5, lin(38, 58, '#b98a52', '#6f4a24'));
+  } else {
+    const tall = level === 3;
+    box(14, 30, 68, 16, stone(14, 82)); cren(14, 30, 68);
+    tower(8, tall ? 14 : 20, 14, 50, 11); tower(74, tall ? 14 : 20, 14, 50, 11);
+    x.fillStyle = '#9c9480'; x.fillRect(14, 46, 68, 20);
+    house(17, 46, 15, 12, ...tile); house(64, 46, 15, 12, ...tile);
+    if (tall) {
+      tower(30, 10, 9, 52, 12); tower(57, 10, 9, 52, 12);
+      box(37, 12, 22, 44, stone(37, 59)); cren(37, 12, 22); slit(42, 20); slit(52, 20); slit(47, 32);
+      box(43, -2, 10, 14, stone(43, 53)); roof(48, -2, 10, 9, f.color, f.dark); flag(48, -21, 11);
+      x.fillStyle = GOLD; x.fillRect(38, 27, 20, 2);
+    } else {
+      box(38, 24, 20, 30, stone(38, 58)); roof(48, 24, 20, 13, f.color, f.dark); slit(43, 31); slit(51, 31); flag(48, -1, 12);
+    }
+    house(22, 56, 14, 10, ...tile); house(60, 56, 14, 10, ...tile);
+    box(12, 62, 72, 24, stone(12, 84)); cren(12, 62, 72);
+    x.save(); x.strokeStyle = 'rgba(40,34,26,.35)'; x.lineWidth = 1; for (let r = 68; r < 86; r += 6) { x.beginPath(); x.moveTo(13, r); x.lineTo(83, r); x.stroke(); } x.restore();
+    if (tall) { x.fillStyle = GOLD; x.fillRect(13, 66, 70, 2); }
+    gate(48, 86, tall ? 14 : 12, tall ? 19 : 17);
+    tower(3, tall ? 40 : 46, 16, 88, tall ? 15 : 12); tower(77, tall ? 40 : 46, 16, 88, tall ? 15 : 12);
+    if (tall) { flag(11, 12, 13); flag(85, 12, 13); box(34, 58, 6, 28, stone(34, 40)); box(56, 58, 6, 28, stone(56, 62)); cren(33, 58, 9); cren(55, 58, 9); }
+  }
   return (spriteCache[key] = c);
 }
 
 function ruinSprite(explored) {
   const key = 'ruin:' + explored; if (spriteCache[key]) return spriteCache[key];
-  const c = mk(48, 48), x = c.getContext('2d'), ink = '#221d18';
-  x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(25, 41, 20, 5, 0, 0, 7); x.fill();
-  const col = (a, top, w) => { const g = x.createLinearGradient(a, 0, a + w, 0); g.addColorStop(0, explored ? '#9d998d' : '#e2dccb'); g.addColorStop(1, explored ? '#55524a' : '#857f70');
-    x.fillStyle = g; x.beginPath(); x.moveTo(a, 40); x.lineTo(a, top + 3); x.lineTo(a + w * 0.4, top); x.lineTo(a + w * 0.7, top + 4); x.lineTo(a + w, top + 1); x.lineTo(a + w, 40); x.closePath(); x.fill(); x.strokeStyle = ink; x.lineWidth = 1.5; x.stroke();
-    x.fillStyle = g; x.fillRect(a - 2, 38, w + 4, 4); x.strokeRect(a - 2, 38, w + 4, 4); };
-  col(7, 12, 8); col(21, 24, 7); col(33, 17, 8);
-  x.fillStyle = explored ? '#6f6c62' : '#b9b3a2'; for (const [a, b, r] of [[18, 42, 3], [30, 43, 2.5], [14, 44, 2]]) { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); x.stroke(); }
-  if (!explored) { const g = x.createRadialGradient(25, 30, 0, 25, 30, 9); g.addColorStop(0, 'rgba(255,240,170,.95)'); g.addColorStop(1, 'rgba(255,210,80,0)'); x.fillStyle = g; x.fillRect(14, 19, 22, 22); }
+  const c = mk(48, 48), x = c.getContext('2d'); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.4;
+  const g = x.createLinearGradient(8, 0, 42, 0); g.addColorStop(0, '#d9d3c2'); g.addColorStop(0.5, '#a9a392'); g.addColorStop(1, '#6d6859');
+  const poly = (pts, fill) => { x.beginPath(); pts.forEach(([p, q], i) => (i ? x.lineTo(p, q) : x.moveTo(p, q))); x.closePath(); x.fillStyle = fill; x.fill(); x.stroke(); };
+  x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(25, 42, 21, 5, 0, 0, 7); x.fill();
+  poly([[30, 41], [30, 27], [34, 23], [37, 28], [41, 26], [43, 31], [43, 41]], g);
+  poly([[9, 41], [9, 15], [13, 10], [16, 16], [20, 6], [24, 14], [28, 9], [31, 17], [31, 41]], g);
+  x.save(); x.strokeStyle = 'rgba(40,34,26,.4)'; x.lineWidth = 1;
+  for (const [a, b, w] of [[11, 22, 8], [21, 20, 8], [14, 29, 7], [24, 33, 6], [33, 33, 8], [11, 36, 6]]) { x.beginPath(); x.moveTo(a, b); x.lineTo(a + w, b); x.stroke(); }
+  x.restore();
+  x.fillStyle = '#17120e'; x.beginPath(); x.moveTo(16, 41); x.lineTo(16, 31); x.arc(20, 31, 4, Math.PI, 0); x.lineTo(24, 41); x.closePath(); x.fill(); x.stroke();
+  if (!explored) { const gl = x.createRadialGradient(20, 34, 0, 20, 34, 11); gl.addColorStop(0, 'rgba(255,236,150,1)'); gl.addColorStop(0.35, 'rgba(255,205,80,.7)'); gl.addColorStop(1, 'rgba(255,200,60,0)'); x.fillStyle = gl; x.fillRect(8, 22, 24, 24); }
+  for (const [a, b, r] of [[36, 43, 3], [28, 44, 2.2], [6, 43, 2.6], [41, 44.5, 1.8]]) { x.beginPath(); x.arc(a, b, r, 0, 7); x.fillStyle = '#a9a392'; x.fill(); x.stroke(); }
+  x.fillStyle = '#4f8a3c'; for (const [a, b, r] of [[10, 18, 2.4], [12, 21, 1.8], [29, 12, 2.2], [27, 16, 1.6], [42, 30, 2], [33, 26, 1.6], [9, 39, 2.4]]) { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); }
   return (spriteCache[key] = c);
 }
 

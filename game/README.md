@@ -9,7 +9,8 @@ Open `index.html` in a browser. No server or install needed.
 
 ## What is in it
 
-- One fixed map (44 x 32 tiles), 4 capitals, 15 free cities, 10 ruins, roads and bridges
+- One fixed map (44 x 32 tiles) with 4 capitals, free cities, ruins, roads and bridges
+- Cities span four tiles, have three tiers (palisade town, walled city, citadel) and show their garrison
 - Armies of up to 8 units, 12 unit types with abilities (flying, siege, banner, volley, ...)
 - Heroes with experience, levels, relics, mana and three spells
 - City mustering, fortifying, income and upkeep

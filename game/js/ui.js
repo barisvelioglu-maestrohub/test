@@ -42,7 +42,7 @@
     ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
     ctx.drawImage(terrain, 0, 0, MAP_W * TS, MAP_H * TS);
     for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS);
-    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS - 8, c.y * TS - 14);
+    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS, c.y * TS - 10);
     for (const s of G.stacks) {
       if (!onScreen(s.x, s.y)) continue;
       const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
@@ -51,9 +51,13 @@
         const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
         ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
       }
+      if (inCity) {
+        const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
+        ctx.drawImage(tokenSprite(top.type, s.owner), px + 8, py + 12, 30, 31);
+      }
       badge(px, py, s.units.length, s.owner, idle);
     }
-    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS / 2, c.y * TS + TS + 2, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
+    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 1, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
     if (preview && preview.path) {
       for (let i = 0; i < preview.path.length; i++) {
         const [x, y] = preview.path[i], last = i === preview.path.length - 1, ok = i < preview.reach;
@@ -62,8 +66,8 @@
         ctx.beginPath(); ctx.arc(x * TS + 24, y * TS + 24, last ? 6 : 3, 0, 7); ctx.fill();
       }
     }
-    const mark = (x, y, col) => {
-      const p = 2 + Math.round(2 * Math.sin(performance.now() / 220)), px = x * TS - p, py = y * TS - p, w = TS + 2 * p, L = 12;
+    const mark = (x, y, col, size = 1) => {
+      const p = 2 + Math.round(2 * Math.sin(performance.now() / 220)), px = x * TS - p, py = y * TS - p, w = TS * size + 2 * p, L = 12;
       ctx.strokeStyle = '#14161a'; ctx.lineWidth = 5;
       for (let pass = 0; pass < 2; pass++) {
         ctx.beginPath();
@@ -73,7 +77,7 @@
       }
     };
     const ss = sel && stackById(sel.stackId);
-    if (ss) mark(ss.x, ss.y, '#ffe27a'); else if (selCity) mark(selCity.x, selCity.y, '#e9e4d2');
+    if (ss) mark(ss.x, ss.y, '#ffe27a'); else if (selCity) mark(selCity.x, selCity.y, '#e9e4d2', 2);
     ctx.restore();
     drawMini();
   }
@@ -87,7 +91,7 @@
     }
     mctx.drawImage(miniBase, 0, 0);
     for (const s of G.stacks) { if (MAP.cityGrid[idx(s.x, s.y)] >= 0) continue; mctx.fillStyle = fac(s.owner).color; mctx.fillRect(s.x * k + 1, s.y * k + 1, k - 2, k - 2); }
-    for (const c of G.cities) { mctx.fillStyle = '#14161a'; mctx.fillRect(c.x * k - 2, c.y * k - 2, k + 4, k + 4); mctx.fillStyle = fac(c.owner).color; mctx.fillRect(c.x * k - 1, c.y * k - 1, k + 2, k + 2); }
+    for (const c of G.cities) { mctx.fillStyle = '#14161a'; mctx.fillRect(c.x * k - 1, c.y * k - 1, 2 * k + 2, 2 * k + 2); mctx.fillStyle = fac(c.owner).color; mctx.fillRect(c.x * k, c.y * k, 2 * k, 2 * k); }
     mctx.strokeStyle = '#fff'; mctx.lineWidth = 1; mctx.strokeRect(cam.x / TS * k + .5, cam.y / TS * k + .5, Math.min(MAP_W, vw / TS) * k, Math.min(MAP_H, vh / TS) * k);
   }
   function loop() { render(); requestAnimationFrame(loop); }
@@ -121,7 +125,9 @@
     const c = selCity || (s && cityAt(s.x, s.y));
     if (c) {
       const mine = c.owner === HUMAN;
-      h += `<h2 style="color:${fac(c.owner).color}">${esc(c.name)}</h2><p class="muted">${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''} · level ${c.level} · walls +${wallBonus(c)} · ${cityIncome(c)} gold/turn</p>`;
+      h += `<h2 style="color:${fac(c.owner).color}">${esc(c.name)}</h2><p class="muted">${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''}<br>${TIER_NAMES[c.level]} (tier ${c.level} of 3) · walls +${wallBonus(c)} · ${cityIncome(c)} gold/turn</p>`;
+      const gar = cityUnits(c);
+      h += `<h3>Garrison <span class="muted">${gar.length}</span></h3>` + (gar.length ? '<div class="units">' + gar.map(u => unitCard(u, c.owner, false, false)).join('') + '</div>' : '<p class="muted">Undefended.</p>');
       if (mine) {
         h += '<h3>Muster</h3><div class="prod">';
         for (const t of c.prod) {
@@ -132,11 +138,8 @@
         }
         h += '</div><div class="row">';
         if (c.cur) h += `<button type="button" data-prod="" data-city="${c.id}">Stop muster</button>`;
-        if (c.level < 4) h += `<button type="button" data-upgrade="${c.id}" ${G.players[HUMAN].gold < upgradeCost(c) ? 'disabled' : ''}>Fortify <small>${upgradeCost(c)} gold</small></button>`;
+        if (c.level < 3) h += `<button type="button" data-upgrade="${c.id}" ${G.players[HUMAN].gold < upgradeCost(c) ? 'disabled' : ''}>Build ${TIER_NAMES[c.level + 1].toLowerCase()} <small>${upgradeCost(c)} gold</small></button>`;
         h += '</div>';
-      } else {
-        const g = stackAt(c.x, c.y);
-        h += `<p class="muted">Garrison: ${g ? g.units.map(u => esc(uName(u))).join(', ') : 'none'}</p>`;
       }
     }
     if (!h) h = '<p class="hint">Select one of your armies or cities. Right-click (or click) the map to march there. Drag to scroll.</p>';
@@ -164,7 +167,7 @@
   function setHoverText(t) { $('hover').textContent = t; }
   function describe(x, y) {
     const parts = [], c = cityAt(x, y), r = ruinAt(x, y), s = stackAt(x, y);
-    parts.push(c ? `${c.name} (${fac(c.owner).short}, walls +${wallBonus(c)})` : TERRAIN_NAMES[MAP.t[y][x]] + (MAP.road[y][x] ? ' · road' : ''));
+    parts.push(c ? `${c.name} (${fac(c.owner).short} ${TIER_NAMES[c.level].toLowerCase()}, walls +${wallBonus(c)}, garrison ${cityUnits(c).length})` : TERRAIN_NAMES[MAP.t[y][x]] + (MAP.road[y][x] ? ' · road' : ''));
     if (r) parts.push(r.name + (r.explored ? ' (searched)' : ' (unsearched ruin)'));
     if (s) parts.push(`${fac(s.owner).short}: ` + s.units.map(u => `${uName(u)} ${uStr(u)}`).join(', '));
     return parts.join(' — ');
@@ -181,7 +184,8 @@
         for (const [x, y] of path) { let ok = true; units.forEach((u, i) => { mp[i] -= stepCost(u, x, y); if (mp[i] < 0) ok = false; }); if (!ok) break; reach++; }
         const t = stackAt(hover.x, hover.y), c = cityAt(hover.x, hover.y), enemy = (t && t.owner !== HUMAN) || (c && c.owner !== HUMAN);
         preview = { path, reach, attack: enemy };
-        if (enemy && t) text += ` — odds of victory about ${Math.round(100 * estimateWin(units, t.units, hover.x, hover.y, c, 40))}%`;
+        const defU = c && c.owner !== HUMAN ? cityUnits(c) : t && t.owner !== HUMAN ? t.units : [];
+        if (defU.length) text += ` — odds of victory about ${Math.round(100 * estimateWin(units, defU, hover.x, hover.y, c, 40))}%`;
         if (reach < path.length) text += ' — more than one turn away';
       } else text += ' — no route';
     }
@@ -250,7 +254,7 @@
     done = true; btn.textContent = 'Continue'; await finished; closeModal();
   };
   UI.gameOver = () => {
-    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save'); } catch (e) { /* ignore */ }
+    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v2'); } catch (e) { /* ignore */ }
     const won = G.winner === HUMAN;
     modal(`<h2>${won ? 'The Vale is yours' : 'Your banner has fallen'}</h2><p>${won ? `After ${G.turn} turns every rival crown lies in the ash. ${esc(FACTIONS[HUMAN].name)} rules ${MAP_NAME}.` : `${esc(FACTIONS[HUMAN].name)} holds no city in ${MAP_NAME}. The war goes on without you.`}</p><div class="row"><button type="button" class="primary" data-a="new">New war</button></div>`);
     waitClick('button[data-a]').then(() => title());
@@ -259,7 +263,7 @@
   function title() {
     busy = true;
     const cards = FACTIONS.map((f, i) => `<button type="button" class="fcard" data-f="${i}" style="--fc:${f.color}"><img src="${spriteURL(f.heroCls, i)}" alt=""><img src="${spriteURL(f.special, i)}" alt=""><b>${esc(f.name)}</b><span>${esc(f.blurb)}</span><span class="muted">Seat: ${esc(f.capital)} · Hero: ${UNITS[f.heroCls].name} · ${UNITS[f.special].name}</span></button>`).join('');
-    modal(`<p class="eyebrow">A turn-based war for ${MAP_NAME}</p><h1 class="logo">Ashen Crowns</h1><p>Four crowns, nineteen cities, one valley. Raise armies, send heroes into the old ruins and take every rival seat. Choose your banner.</p>
+    modal(`<p class="eyebrow">A turn-based war for ${MAP_NAME}</p><h1 class="logo">Ashen Crowns</h1><p>Four crowns, one valley. Raise armies, send heroes into the old ruins and take every rival seat. Choose your banner.</p>
       <div class="fgrid">${cards}</div>${hasSave() ? '<div class="row"><button type="button" class="primary" data-f="load">Continue saved war</button></div>' : ''}`);
     waitClick('button[data-f]').then(async b => {
       closeModal();
@@ -276,7 +280,7 @@
       <li><b>Armies.</b> Click an army to select it, then click (or right-click) a destination. Up to ${MAX_STACK} units share a tile. Click a unit in the panel to leave it behind. Right-click a friendly army to merge.</li>
       <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross water and mountains; bridges carry everyone.</li>
       <li><b>Battle.</b> Units duel one at a time, weakest first. The chance to land a hit is your strength against theirs. City walls, banners, heroes and terrain all add strength. Hover an enemy to see the odds.</li>
-      <li><b>Cities.</b> Each city musters one unit type at a time and repeats it while you can pay. Fortify a city for more gold and stronger walls.</li>
+      <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
       <li><b>Heroes.</b> Heroes gain experience, cast spells with mana and can search ruins (golden spark) for gold, relics or allies. It can kill them.</li>
       <li><b>Keys.</b> N next army · E end turn · Esc deselect · arrows scroll.</li></ul>
       <div class="row"><button type="button" class="primary" data-a="ok">Back to the war</button></div>`);

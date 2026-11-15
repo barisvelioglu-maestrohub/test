@@ -42,6 +42,19 @@ const stackAt = (x, y) => G.stacks.find(s => s.x === x && s.y === y) || null;
 const stackById = id => G.stacks.find(s => s.id === id) || null;
 const cityAt = (x, y) => { const i = MAP.cityGrid[idx(x, y)]; return i >= 0 ? G.cities[i] : null; };
 const ruinAt = (x, y) => { const i = MAP.ruinGrid[idx(x, y)]; return i >= 0 ? G.ruins[i] : null; };
+/* A city covers four tiles; every army standing in it defends it together. */
+const CITY_TILES = [[0, 0], [1, 0], [0, 1], [1, 1]];
+const TIER_NAMES = ['', 'Palisade town', 'Walled city', 'Citadel'];
+const cityStacks = c => CITY_TILES.map(([a, b]) => stackAt(c.x + a, c.y + b)).filter(Boolean);
+const cityUnits = c => cityStacks(c).flatMap(s => s.units);
+function cityRoom(c) {
+  for (const [a, b] of CITY_TILES) {
+    let s = stackAt(c.x + a, c.y + b);
+    if (!s) { s = { id: G.nextId++, x: c.x + a, y: c.y + b, owner: c.owner, units: [] }; G.stacks.push(s); return s; }
+    if (s.units.length < MAX_STACK) return s;
+  }
+  return null;
+}
 function removeStack(s) { const i = G.stacks.indexOf(s); if (i >= 0) G.stacks.splice(i, 1); }
 
 /* ---------- movement ---------- */
@@ -115,7 +128,7 @@ async function moveGroup(stack, ids, path, delay = 0) {
 }
 
 /* ---------- battle ---------- */
-function wallBonus(city) { return Math.ceil(city.level / 2) + (city.level === 4 ? 1 : 0); }
+function wallBonus(city) { return city.level; }
 
 function battleStr(u, own, enemy, x, y, isDef, city) {
   let s = uStr(u);
@@ -169,19 +182,20 @@ function gainXp(heroes, amount) {
 }
 
 async function attack(from, units, x, y) {
-  const def = stackAt(x, y), city = cityAt(x, y), owner = from.owner;
+  const city = cityAt(x, y), owner = from.owner, here = stackAt(x, y);
+  const defStacks = city && city.owner !== owner ? cityStacks(city) : here ? [here] : [];
+  const defUnits = defStacks.flatMap(s => s.units), def = { owner: defStacks.length ? defStacks[0].owner : -1 };
   let res = null;
-  if (def && def.units.length) {
-    res = simulateBattle(units, def.units, x, y, city);
+  if (defUnits.length) {
+    res = simulateBattle(units, defUnits, x, y, city);
     const where = city ? city.name : TERRAIN_NAMES[MAP.t[y][x]].toLowerCase();
     if (!AUTO && (isHuman(owner) || isHuman(def.owner))) await UI.showBattle(res, owner, def.owner, city, x, y);
-    const killedD = def.units.filter(u => res.dDead.has(u.id)), killedA = units.filter(u => res.aDead.has(u.id));
+    const killedD = defUnits.filter(u => res.dDead.has(u.id)), killedA = units.filter(u => res.aDead.has(u.id));
     from.units = from.units.filter(u => !res.aDead.has(u.id));
-    def.units = def.units.filter(u => !res.dDead.has(u.id));
+    for (const s of defStacks) { s.units = s.units.filter(u => !res.dDead.has(u.id)); if (!s.units.length) removeStack(s); }
     gainXp(units.filter(u => u.hero && !res.aDead.has(u.id)), killedD.reduce((s, u) => s + U(u).str, 0));
-    gainXp(def.units.filter(u => u.hero), killedA.reduce((s, u) => s + U(u).str, 0));
+    gainXp(defUnits.filter(u => u.hero && !res.dDead.has(u.id)), killedA.reduce((s, u) => s + U(u).str, 0));
     [...killedA, ...killedD].forEach(u => { if (u.hero) logMsg(`${u.hero.name} has fallen in battle.`, -2); });
-    if (!def.units.length) removeStack(def);
     if (!res.win) {
       logMsg(`${fac(owner).short} is beaten back at ${where} by ${fac(def.owner).short}.`, def.owner);
       if (!from.units.length) removeStack(from);
@@ -213,8 +227,8 @@ function eliminate(p) {
 }
 
 /* ---------- cities ---------- */
-const cityIncome = c => 10 + 5 * c.level + (c.capital >= 0 ? 10 : 0);
-const upgradeCost = c => 120 * c.level;
+const cityIncome = c => 8 + 7 * c.level + (c.capital >= 0 ? 10 : 0);
+const upgradeCost = c => 150 * c.level;
 function income(p) {
   let inc = 0, up = 0;
   for (const c of G.cities) if (c.owner === p) inc += cityIncome(c);
@@ -231,8 +245,8 @@ function setProduction(city, type) {
 }
 function upgradeCity(city) {
   const pl = G.players[city.owner], cost = upgradeCost(city);
-  if (city.level >= 4 || pl.gold < cost) return false;
-  pl.gold -= cost; city.level++; logMsg(`${city.name} is fortified to level ${city.level}.`, city.owner); return true;
+  if (city.level >= 3 || pl.gold < cost) return false;
+  pl.gold -= cost; city.level++; logMsg(`${city.name} is raised to a ${TIER_NAMES[city.level].toLowerCase()}.`, city.owner); return true;
 }
 
 /* ---------- heroes ---------- */
@@ -289,7 +303,7 @@ function newGame(human) {
     } else {
       city.name = CITY_NAMES[ni++ % CITY_NAMES.length];
       const central = Math.abs(c.x - MAP_W / 2) < 9 && Math.abs(c.y - MAP_H / 2) < 7;
-      city.level = central ? 2 : 1 + (rnd(4) === 0 ? 1 : 0);
+      city.level = central ? 2 : 1 + (rnd(4) === 0 ? 1 : 0); if (central && rnd(3) === 0) city.level = 3;
       const set = new Set(['levy']); while (set.size < 4) set.add(pick(pool)); city.prod = [...set].sort((a, b) => UNITS[a].cost - UNITS[b].cost);
       const s = { id: G.nextId++, x: c.x, y: c.y, owner: -1, units: [] }; G.stacks.push(s);
       const n = central ? 3 : 1 + rnd(2); for (let k = 0; k < n; k++) s.units.push(makeUnit(pick(central ? ['pike', 'archer', 'reaver'] : ['levy', 'levy', 'pike', 'archer'])));
@@ -316,9 +330,7 @@ async function beginTurn(p) {
     if (c.owner !== p || !c.cur) continue;
     if (c.left > 0) c.left--;
     if (c.left > 0) continue;
-    let s = stackAt(c.x, c.y);
-    if (s && s.units.length >= MAX_STACK) continue; // no room: wait
-    if (!s) { s = { id: G.nextId++, x: c.x, y: c.y, owner: p, units: [] }; G.stacks.push(s); }
+    const s = cityRoom(c); if (!s) continue; // no room: wait
     s.units.push(makeUnit(c.cur));
     const type = c.cur; c.cur = null;
     if (!setProduction(c, type)) logMsg(`${c.name} halts production: not enough gold.`, p);
@@ -326,15 +338,14 @@ async function beginTurn(p) {
   if (G.turn >= pl.heroOffer) {
     const heroes = G.stacks.filter(s => s.owner === p).reduce((n, s) => n + s.units.filter(u => u.hero).length, 0);
     const home = G.cities.find(c => c.owner === p && c.capital === p) || G.cities.find(c => c.owner === p);
-    const st = home && stackAt(home.x, home.y), cost = 80 + 60 * heroes;
+    const cost = 80 + 60 * heroes;
     pl.heroOffer = G.turn + 6 + rnd(5);
-    if (home && heroes < 3 && (!st || st.units.length < MAX_STACK) && pl.gold >= cost) {
+    if (home && heroes < 3 && cityUnits(home).length < 4 * MAX_STACK && pl.gold >= cost) {
       const cls = pick(['champion', 'seer']);
       const yes = pl.human && !AUTO ? await UI.askHero(cls, cost, home) : pl.gold >= cost + 60;
       if (yes) {
         pl.gold -= cost; const h = makeHero(p, cls);
-        let s = stackAt(home.x, home.y); if (!s) { s = { id: G.nextId++, x: home.x, y: home.y, owner: p, units: [] }; G.stacks.push(s); }
-        s.units.push(h); logMsg(`${h.hero.name}, a ${U(h).name.toLowerCase()}, joins ${fac(p).short} at ${home.name}.`, p);
+        cityRoom(home).units.push(h); logMsg(`${h.hero.name}, a ${U(h).name.toLowerCase()}, joins ${fac(p).short} at ${home.name}.`, p);
       }
     }
   }
@@ -354,12 +365,12 @@ async function runTurns() {
   UI.gameOver();
 }
 
-function saveGame() { try { localStorage.setItem('ashen-crowns-save', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
+function saveGame() { try { localStorage.setItem('ashen-crowns-save-v2', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
 function loadGame() {
   try {
-    const raw = localStorage.getItem('ashen-crowns-save'); if (!raw) return false;
+    const raw = localStorage.getItem('ashen-crowns-save-v2'); if (!raw) return false;
     const g = JSON.parse(raw); if (!g || !g.cities || g.over) return false;
     MAP = genMap(); G = g; return true;
   } catch (e) { return false; }
 }
-function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }
+function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save-v2'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }
