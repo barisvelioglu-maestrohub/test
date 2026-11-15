@@ -1191,14 +1191,13 @@ function paintTerrain() {
       if (!onScreen(s.x, s.y)) continue;
       const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
       const idle = s.owner === HUMAN && !s.units.some(u => u.mp >= 1);
-      if (!inCity) {
-        const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
-        ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
+      const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
+      if (inCity) { // a pale halo lifts the garrison off the stonework
+        const hl = ctx.createRadialGradient(px + 24, py + 22, 6, px + 24, py + 22, 27);
+        hl.addColorStop(0, 'rgba(255,250,225,.9)'); hl.addColorStop(0.7, 'rgba(255,250,225,.45)'); hl.addColorStop(1, 'rgba(255,250,225,0)');
+        ctx.fillStyle = hl; ctx.fillRect(px - 4, py - 6, 56, 56);
       }
-      if (inCity) {
-        const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
-        ctx.drawImage(tokenSprite(top.type, s.owner), px + 8, py + 12, 30, 31);
-      }
+      ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
       badge(px, py, s.units.length, s.owner, idle);
     }
     for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 1, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
