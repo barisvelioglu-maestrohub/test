@@ -25,7 +25,7 @@
 
   /* ---------- drawing ---------- */
   function label(text, x, y, color) {
-    ctx.font = '600 11px "Alegreya Sans", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.font = '700 12px "Alegreya Sans", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(16,18,20,.85)'; ctx.strokeText(text, x, y); ctx.fillStyle = color; ctx.fillText(text, x, y);
   }
   function badge(px, py, n, owner, dim) {
@@ -41,22 +41,19 @@
     ctx.fillStyle = '#12161a'; ctx.fillRect(0, 0, vw, vh);
     ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
     ctx.drawImage(terrain, 0, 0, MAP_W * TS, MAP_H * TS);
-    for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS, TS, TS);
-    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS, c.y * TS, TS, TS);
+    for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS);
+    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS - 8, c.y * TS - 14);
     for (const s of G.stacks) {
       if (!onScreen(s.x, s.y)) continue;
       const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
       const idle = s.owner === HUMAN && !s.units.some(u => u.mp >= 1);
       if (!inCity) {
         const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
-        ctx.fillStyle = 'rgba(10,12,14,.45)'; ctx.beginPath(); ctx.ellipse(px + 24, py + 41, 17, 6, 0, 0, 7); ctx.fill();
-        ctx.fillStyle = f.dark; ctx.beginPath(); ctx.ellipse(px + 24, py + 39, 15, 5, 0, 0, 7); ctx.fill();
-        ctx.fillStyle = f.color; ctx.beginPath(); ctx.ellipse(px + 24, py + 38, 13, 4, 0, 0, 7); ctx.fill();
-        ctx.drawImage(unitSprite(top.type, s.owner), px + 6, py + 4, 36, 36);
+        ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
       }
       badge(px, py, s.units.length, s.owner, idle);
     }
-    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS / 2, c.y * TS + TS - 2, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
+    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS / 2, c.y * TS + TS + 2, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
     if (preview && preview.path) {
       for (let i = 0; i < preview.path.length; i++) {
         const [x, y] = preview.path[i], last = i === preview.path.length - 1, ok = i < preview.reach;
