@@ -1069,12 +1069,13 @@ function tokenSprite(type, owner) {
   return (spriteCache[key] = c);
 }
 
-/* Cities are drawn from above at an angle: a walled square that fills its four tiles, corner towers, a keep in the middle
-   and room in each quarter for the army standing there. Three tiers: palisade town, walled city, citadel. */
+/* Cities are drawn from above at an angle: a walled square whose yard is exactly its four tiles, one paved plot per army,
+   with the walls and corner towers standing outside the plots. Three tiers: palisade town, walled city, citadel. */
+const CITY_OX = 18, CITY_OY = 44;
 function citySprite(owner, level) {
   const key = 'city:' + owner + ':' + level; if (spriteCache[key]) return spriteCache[key];
-  const f = fac(owner), c = mk(96, 106), x = c.getContext('2d');
-  x.translate(0, 10); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.3;
+  const f = fac(owner), c = mk(96 + 2 * CITY_OX, CITY_OY + 126), x = c.getContext('2d');
+  x.translate(CITY_OX, CITY_OY); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.3;
   const wood = level === 1, tall = level === 3;
   const lin = (x0, x1, a, b, m) => { const g = x.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); if (m) g.addColorStop(0.5, m); g.addColorStop(1, b); return g; };
   const face = (a, w) => (wood ? lin(a, a + w, '#b98a52', '#6a4622', '#93683a') : lin(a, a + w, '#e4dcc8', '#7f7866', '#bdb5a0'));
@@ -1086,44 +1087,31 @@ function citySprite(owner, level) {
   const cren = (a, b, w) => { if (wood) return; for (let i = a + 1; i < a + w - 3; i += 6) box(i, b - 3, 3.5, 3, topc); };
   const hwall = (a, b, w, topH, faceH) => { box(a, b, w, topH, topc); box(a, b + topH, w, faceH, face(a, w)); if (wood) ticks(a, b + topH, w, faceH, 4, 'rgba(40,26,10,.55)'); else rows(a, b + topH, w, faceH, 5, 'rgba(40,34,26,.3)'); cren(a, b, w); };
   const vwall = (a, b, w, h) => { box(a, b, w, h, topc); x.fillStyle = wood ? '#93683a' : '#bdb5a0'; x.fillRect(a + w - 2.5, b + 1, 2, h - 2); if (wood) rows(a, b, w, h, 4, 'rgba(40,26,10,.45)'); else rows(a, b, w, h, 6, 'rgba(40,34,26,.3)'); };
-  const house = (a, b, w, h, ra, rb) => { box(a, b + h * 0.55, w, h * 0.45, lin(a, a + w, '#f1e4c6', '#b5a583')); box(a - 1, b, w + 2, h * 0.32, ra); box(a - 1, b + h * 0.32, w + 2, h * 0.3, rb); };
   const flag = (px, top, len = 12) => { x.beginPath(); x.moveTo(px, top + len); x.lineTo(px, top); x.stroke(); poly([[px, top], [px + 10, top + 3], [px, top + 6]], f.color); };
   const tower = (cx, cy, r, h, roofH) => {
     box(cx - r, cy, 2 * r, h, face(cx - r, 2 * r)); if (wood) ticks(cx - r, cy, 2 * r, h, 4, 'rgba(40,26,10,.5)'); else rows(cx - r, cy, 2 * r, h, 5, 'rgba(40,34,26,.3)');
     x.fillStyle = INK; x.fillRect(cx - 1, cy + 4, 2, 5);
     poly([[cx - r - 2, cy], [cx, cy - roofH], [cx + r + 2, cy]], f.color); poly([[cx, cy - roofH], [cx + r + 2, cy], [cx + 1, cy]], f.dark);
   };
-  const roofA = wood ? '#e0bd66' : '#c7654a', roofB = wood ? '#a5822f' : '#8a3a28';
-
-  x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(49, 93, 48, 6, 0, 0, 7); x.fill();
-  x.fillStyle = wood ? '#a3955f' : '#bcb294'; x.fillRect(6, 8, 84, 76);                       // yard
-  x.save(); x.fillStyle = wood ? 'rgba(90,70,35,.25)' : 'rgba(70,62,48,.22)'; for (let i = 0; i < 46; i++) x.fillRect(8 + (i * 37) % 80, 12 + (i * 53) % 68, 3, 2); x.restore();
-  x.fillStyle = wood ? '#b9a877' : '#d6ccb0'; x.fillRect(44, 48, 8, 36); x.fillRect(10, 44, 76, 6); // streets
-  hwall(4, 3, 88, 5, 8);                                                                         // back wall
-  vwall(3, 8, 7, 76); vwall(86, 8, 7, 76);                                                       // side walls
-  for (const [a, b] of [[14, 19], [28, 18], [58, 18], [72, 19], [13, 31], [73, 31], [13, 55], [26, 57], [60, 57], [73, 55], [14, 67], [72, 67]])
-    if (tall || !(a === 28 || a === 58)) house(a, b, 10, 10, roofA, roofB);
-  tower(11, 6, 8, 12, wood ? 8 : 11); tower(85, 6, 8, 12, wood ? 8 : 11);                         // back towers
-  if (wood) {
-    house(36, 28, 24, 22, f.color, f.dark); flag(48, 10, 14);                                     // great hall
-  } else if (!tall) {
-    box(37, 30, 22, 22, face(37, 22)); rows(37, 30, 22, 22, 5, 'rgba(40,34,26,.3)');
-    poly([[34, 30], [48, 14], [62, 30]], f.color); poly([[48, 14], [62, 30], [49, 30]], f.dark);
-    x.fillStyle = INK; x.fillRect(42, 36, 2, 6); x.fillRect(52, 36, 2, 6); flag(48, 0, 14);
-  } else {
-    tower(34, 26, 5, 26, 10); tower(62, 26, 5, 26, 10);
-    box(36, 20, 24, 34, face(36, 24)); rows(36, 20, 24, 34, 5, 'rgba(40,34,26,.3)'); cren(36, 20, 24);
-    x.fillStyle = GOLD; x.fillRect(37, 31, 22, 2); x.fillStyle = INK; x.fillRect(41, 37, 2, 7); x.fillRect(47, 37, 2, 7); x.fillRect(53, 37, 2, 7);
-    box(42, 6, 12, 14, face(42, 12)); poly([[40, 6], [48, -6], [56, 6]], f.color); poly([[48, -6], [56, 6], [49, 6]], f.dark); flag(48, -19, 13);
-    tower(6.5, 40, 6, 12, 9); tower(89.5, 40, 6, 12, 9);
+  const rh = wood ? 9 : tall ? 15 : 12;
+  x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(49, 117, 62, 7, 0, 0, 7); x.fill();
+  x.fillStyle = wood ? '#b9a877' : '#d6ccb0'; x.fillRect(-5, -3, 106, 104);                       // streets between the plots
+  for (const [a, b] of [[1, 1], [49, 1], [1, 49], [49, 49]]) {                                    // four plots, one per army
+    x.fillStyle = wood ? '#9a8a57' : '#b3a98b'; x.fillRect(a, b, 46, 46);
+    x.save(); x.strokeStyle = wood ? 'rgba(70,52,24,.55)' : 'rgba(60,52,38,.5)'; x.lineWidth = 1; x.strokeRect(a + 0.5, b + 0.5, 45, 45);
+    x.fillStyle = wood ? 'rgba(90,70,35,.22)' : 'rgba(70,62,48,.2)'; for (let i = 0; i < 12; i++) x.fillRect(a + 4 + (i * 29) % 36, b + 5 + (i * 17) % 36, 3, 2); x.restore();
   }
-  hwall(4, 76, 88, 5, tall ? 13 : 11);                                                            // front wall
-  if (tall) { x.fillStyle = GOLD; x.fillRect(5, 83, 86, 1.8); }
-  const gw = tall ? 14 : 12, gb = tall ? 94 : 92;
+  hwall(-13, -15, 122, 5, 8);                                                                     // back wall
+  vwall(-14, -8, 9, 110); vwall(101, -8, 9, 110);                                                 // side walls
+  tower(-9, -13, 8, 13, rh); tower(105, -13, 8, 13, rh); flag(-9, -13 - rh - 12, 13);             // back towers
+  if (tall) { tower(48, -17, 7, 14, 13); tower(-10, 40, 6, 13, 10); tower(106, 40, 6, 13, 10); flag(48, -43, 13); }
+  hwall(-13, 100, 122, 5, tall ? 13 : 11);                                                        // front wall
+  if (tall) { x.fillStyle = GOLD; x.fillRect(-12, 107, 120, 1.8); }
+  const gw = tall ? 16 : 13, gb = tall ? 118 : 116;
   x.fillStyle = INK; x.beginPath(); x.moveTo(48 - gw / 2, gb); x.lineTo(48 - gw / 2, gb - 8); x.arc(48, gb - 8, gw / 2, Math.PI, 0); x.lineTo(48 + gw / 2, gb); x.closePath(); x.fill();
-  ticks(48 - gw / 2, gb - 12, gw, 12, 3, wood ? '#8a6a3a' : '#7a6746');
-  tower(11, 72, 9, tall ? 23 : 21, wood ? 9 : tall ? 15 : 12); tower(85, 72, 9, tall ? 23 : 21, wood ? 9 : tall ? 15 : 12); // front towers
-  if (tall) { flag(11, 44, 13); flag(85, 44, 13); }
+  ticks(48 - gw / 2, gb - 13, gw, 13, 3, wood ? '#8a6a3a' : '#7a6746');
+  tower(-9, 96, 9, tall ? 23 : 21, rh); tower(105, 96, 9, tall ? 23 : 21, rh);                    // front towers
+  if (tall) { flag(-9, 96 - rh - 12, 13); flag(105, 96 - rh - 12, 13); }
   return (spriteCache[key] = c);
 }
 
@@ -1282,7 +1270,7 @@ function paintTerrain() {
     ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
     ctx.drawImage(terrain, 0, 0, MAP_W * TS, MAP_H * TS);
     for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS);
-    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS, c.y * TS - 10);
+    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS - CITY_OX, c.y * TS - CITY_OY);
     for (const o of G.drops) { // relics left by a fallen hero
       if (!onScreen(o.x, o.y)) continue; const a = o.x * TS + 14, b = o.y * TS + 24;
       ctx.fillStyle = 'rgba(8,10,12,.4)'; ctx.beginPath(); ctx.ellipse(a + 10, b + 15, 13, 4, 0, 0, 7); ctx.fill();
@@ -1294,11 +1282,6 @@ function paintTerrain() {
       const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
       const idle = s.owner === HUMAN && !s.units.some(u => u.mp >= 1);
       const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
-      if (inCity) { // a pale halo lifts the garrison off the stonework
-        const hl = ctx.createRadialGradient(px + 24, py + 22, 6, px + 24, py + 22, 27);
-        hl.addColorStop(0, 'rgba(255,250,225,.9)'); hl.addColorStop(0.7, 'rgba(255,250,225,.45)'); hl.addColorStop(1, 'rgba(255,250,225,0)');
-        ctx.fillStyle = hl; ctx.fillRect(px - 4, py - 6, 56, 56);
-      }
       ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
       if (s.units.some(u => u.hero)) { // a crown marks an army led by a hero
         ctx.beginPath(); ctx.moveTo(px - 1, py + 9); ctx.lineTo(px - 2, py - 2); ctx.lineTo(px + 3, py + 3); ctx.lineTo(px + 7, py - 4); ctx.lineTo(px + 11, py + 3); ctx.lineTo(px + 16, py - 2); ctx.lineTo(px + 15, py + 9); ctx.closePath();
@@ -1307,7 +1290,7 @@ function paintTerrain() {
       }
       badge(px, py, s.units.length, s.owner, idle);
     }
-    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 1, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
+    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 23, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
     if (preview && preview.path) {
       for (let i = 0; i < preview.path.length; i++) {
         const [x, y] = preview.path[i], last = i === preview.path.length - 1, ok = i < preview.reach;

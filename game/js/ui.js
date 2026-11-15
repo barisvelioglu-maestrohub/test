@@ -42,7 +42,7 @@
     ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
     ctx.drawImage(terrain, 0, 0, MAP_W * TS, MAP_H * TS);
     for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS);
-    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS, c.y * TS - 10);
+    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS - CITY_OX, c.y * TS - CITY_OY);
     for (const o of G.drops) { // relics left by a fallen hero
       if (!onScreen(o.x, o.y)) continue; const a = o.x * TS + 14, b = o.y * TS + 24;
       ctx.fillStyle = 'rgba(8,10,12,.4)'; ctx.beginPath(); ctx.ellipse(a + 10, b + 15, 13, 4, 0, 0, 7); ctx.fill();
@@ -54,11 +54,6 @@
       const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
       const idle = s.owner === HUMAN && !s.units.some(u => u.mp >= 1);
       const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
-      if (inCity) { // a pale halo lifts the garrison off the stonework
-        const hl = ctx.createRadialGradient(px + 24, py + 22, 6, px + 24, py + 22, 27);
-        hl.addColorStop(0, 'rgba(255,250,225,.9)'); hl.addColorStop(0.7, 'rgba(255,250,225,.45)'); hl.addColorStop(1, 'rgba(255,250,225,0)');
-        ctx.fillStyle = hl; ctx.fillRect(px - 4, py - 6, 56, 56);
-      }
       ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
       if (s.units.some(u => u.hero)) { // a crown marks an army led by a hero
         ctx.beginPath(); ctx.moveTo(px - 1, py + 9); ctx.lineTo(px - 2, py - 2); ctx.lineTo(px + 3, py + 3); ctx.lineTo(px + 7, py - 4); ctx.lineTo(px + 11, py + 3); ctx.lineTo(px + 16, py - 2); ctx.lineTo(px + 15, py + 9); ctx.closePath();
@@ -67,7 +62,7 @@
       }
       badge(px, py, s.units.length, s.owner, idle);
     }
-    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 1, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
+    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 23, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
     if (preview && preview.path) {
       for (let i = 0; i < preview.path.length; i++) {
         const [x, y] = preview.path[i], last = i === preview.path.length - 1, ok = i < preview.reach;
