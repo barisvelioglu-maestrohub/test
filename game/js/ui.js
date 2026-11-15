@@ -102,20 +102,22 @@
   function loop() { render(); requestAnimationFrame(loop); }
 
   /* ---------- side panel ---------- */
+  /* A unit portrait: figure, strength bottom-left, movement left bottom-right. */
   function unitCard(u, owner, picked, clickable) {
     const ab = U(u).abil.map(a => ABILITIES[a]).join(' · ');
-    const extra = u.hero ? `Lv ${u.hero.level} · mana ${u.hero.mana}/${uMaxMana(u)}` : '';
-    return `<button type="button" class="unit${u.hero ? ' hero' : ''}${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(ab || 'No special ability')}">
-      <img src="${spriteURL(u.type, owner)}" alt=""><span class="un">${esc(uName(u))}${u.bless ? ' ✦' : ''}</span>
-      <span class="us">Str ${uStr(u)} · Hits ${uMaxHp(u)} · Move ${Math.max(0, Math.floor(u.mp))}/${uMaxMp(u)}</span>${extra ? `<span class="us">${extra}</span>` : ''}</button>`;
+    const tip = `${uName(u)}${u.hero ? `, level ${u.hero.level} ${U(u).name}` : ''}: strength ${uStr(u)}, hits ${uMaxHp(u)}, movement ${Math.max(0, Math.floor(u.mp))} of ${uMaxMp(u)}${u.hero ? `, mana ${u.hero.mana}/${uMaxMana(u)}` : ''}. ${ab || 'No special ability.'}`;
+    return `<button type="button" class="tile${u.hero ? ' hero' : ''}${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(tip)}">
+      <img src="${spriteURL(u.type, owner)}" alt=""><span class="tn">${esc(uName(u))}${u.bless ? ' ✦' : ''}</span>
+      <span class="bs">${uStr(u)}</span><span class="bh">${'<i></i>'.repeat(uMaxHp(u))}</span><span class="bm">${Math.max(0, Math.floor(u.mp))}</span></button>`;
   }
   function panelHTML() {
     let h = '';
     const s = sel && stackById(sel.stackId);
     if (s) {
-      h += `<h2>Army <span class="muted">${s.units.length}/${MAX_STACK}</span></h2><div class="units">`;
+      h += `<h2>Army <span class="muted">${s.units.length}/${MAX_STACK}</span></h2><div class="tiles">`;
       for (const u of s.units.slice().sort((a, b) => !!b.hero - !!a.hero)) h += unitCard(u, s.owner, sel.ids.has(u.id), true);
-      h += '</div><p class="hint">Click a unit to leave it behind. Click the map to march.</p>';
+      h += '<span class="tile empty"></span>'.repeat(MAX_STACK - s.units.length);
+      h += '</div><p class="hint">Left number: strength. Right number: movement left. Green pips: hits. Click a unit to leave it behind.</p>';
       const hero = s.units.find(u => u.hero && sel.ids.has(u.id));
       if (hero) {
         h += `<h3>${esc(hero.hero.name)}</h3><p class="muted">Level ${hero.hero.level} ${U(hero).name} · ${hero.hero.xp}/${xpFor(hero.hero.level)} xp${heroLead(hero) ? ` · command +${heroLead(hero)}` : ''}</p>`;
@@ -142,7 +144,7 @@
       const mine = c.owner === HUMAN;
       h += `<h2 style="color:${fac(c.owner).color}">${esc(c.name)}</h2><p class="muted">${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''}<br>${TIER_NAMES[c.level]} (tier ${c.level} of 3) · walls +${wallBonus(c)} · ${cityIncome(c)} gold/turn</p>`;
       const gar = cityUnits(c);
-      h += `<h3>Garrison <span class="muted">${gar.length}</span></h3>` + (gar.length ? '<div class="units">' + gar.map(u => unitCard(u, c.owner, false, false)).join('') + '</div>' : '<p class="muted">Undefended.</p>');
+      h += `<h3>Garrison <span class="muted">${gar.length}</span></h3>` + (gar.length ? '<div class="tiles">' + gar.map(u => unitCard(u, c.owner, false, false)).join('') + '</div>' : '<p class="muted">Undefended.</p>');
       if (mine) {
         h += '<h3>Muster</h3><div class="prod">';
         for (const t of c.prod) {
@@ -171,7 +173,7 @@
   }
 
   /* ---------- selection and orders ---------- */
-  function selectStack(s) { sel = { stackId: s.id, ids: new Set(s.units.filter(u => u.mp >= 1).map(u => u.id)) }; if (!sel.ids.size) sel.ids = new Set(s.units.map(u => u.id)); selCity = null; preview = null; refresh(); }
+  function selectStack(s) { SFX.play('select'); sel = { stackId: s.id, ids: new Set(s.units.filter(u => u.mp >= 1).map(u => u.id)) }; if (!sel.ids.size) sel.ids = new Set(s.units.map(u => u.id)); selCity = null; preview = null; refresh(); }
   function deselect() { sel = null; selCity = null; preview = null; refresh(); }
   function selUnits() { const s = sel && stackById(sel.stackId); return s ? s.units.filter(u => sel.ids.has(u.id)) : []; }
   function nextArmy() {
@@ -211,9 +213,9 @@
     const s = stackById(sel.stackId), units = selUnits(); if (!s || !units.length) return;
     const dm = dijkstraMap(units, HUMAN, s.x, s.y), path = pathTo(dm, tx, ty);
     if (!path || !path.length) { setHoverText('No route there for this army.'); return; }
-    const ids = units.map(u => u.id); busy = true; preview = null; refresh();
+    const ids = units.map(u => u.id), had = G.cities.filter(c => c.owner === HUMAN).length; busy = true; preview = null; refresh();
     const end = await moveGroup(s, ids, path, 55);
-    busy = false;
+    busy = false; if (G.cities.filter(c => c.owner === HUMAN).length > had) SFX.play('capture');
     const left = end && end.owner === HUMAN ? end.units.filter(u => ids.includes(u.id)) : [];
     sel = left.length ? { stackId: end.id, ids: new Set(left.map(u => u.id)) } : null; selCity = null;
     if (G.over) { UI.gameOver(); return; }
@@ -243,10 +245,10 @@
     modal(`<h2>News of your heroes</h2>${list.map(t => `<p>${esc(t)}</p>`).join('')}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`);
     waitClick('button[data-a]').then(closeModal);
   }
-  UI.tick = async (delay, stack) => { if (stack && onScreen(stack.x, stack.y)) await sleep(delay); };
+  UI.tick = async (delay, stack) => { if (stack && stack.owner === HUMAN) SFX.play('step'); if (stack && onScreen(stack.x, stack.y)) await sleep(delay); };
   UI.refresh = refresh;
   UI.onHumanTurn = () => {
-    busy = false; sel = null; selCity = null;
+    busy = false; sel = null; selCity = null; SFX.play('turn');
     const first = G.stacks.find(s => s.owner === HUMAN && s.units.some(u => u.mp >= 2));
     if (first) { selectStack(first); centerOn(first.x, first.y); } else refresh();
     showNotices();
@@ -268,19 +270,19 @@
     const finished = new Promise(resolve => btn.addEventListener('click', () => { if (done) resolve(); else skip = true; }));
     for (const e of res.events) {
       if (e.k === 'duel') { $('mbox').querySelectorAll('.bu.act').forEach(n => n.classList.remove('act')); for (const id of [e.a, e.d]) { const n = $('bu' + id); if (n) n.classList.add('act'); } }
-      else if (e.k === 'roll') { const da = $('dieA'), dd = $('dieD'); da.textContent = e.ra; dd.textContent = e.rd; da.className = 'die ' + (e.aOk ? 'ok' : 'miss'); dd.className = 'die ' + (e.aOk ? 'miss' : 'ok'); }
-      else if (e.k === 'hit') { const n = $('bu' + e.id); if (n) { const pips = n.querySelectorAll('.pips i'); pips.forEach((p, i) => p.classList.toggle('lost', i >= e.hp)); n.classList.add('hit'); setTimeout(() => n.classList.remove('hit'), 120); } }
-      else if (e.k === 'die') { const n = $('bu' + e.id); if (n) n.classList.add('dead'); }
+      else if (e.k === 'roll') { if (!skip) SFX.play('dice'); const da = $('dieA'), dd = $('dieD'); da.textContent = e.ra; dd.textContent = e.rd; da.className = 'die ' + (e.aOk ? 'ok' : 'miss'); dd.className = 'die ' + (e.aOk ? 'miss' : 'ok'); }
+      else if (e.k === 'hit') { if (!skip) SFX.play('hit'); const n = $('bu' + e.id); if (n) { const pips = n.querySelectorAll('.pips i'); pips.forEach((p, i) => p.classList.toggle('lost', i >= e.hp)); n.classList.add('hit'); setTimeout(() => n.classList.remove('hit'), 120); } }
+      else if (e.k === 'die') { if (!skip) SFX.play('die'); const n = $('bu' + e.id); if (n) n.classList.add('dead'); }
       if (!skip) await sleep(e.k === 'duel' ? 260 : e.k === 'roll' ? 300 : 170);
     }
-    const humanWon = (attOwner === HUMAN) === res.win;
+    const humanWon = (attOwner === HUMAN) === res.win; SFX.play(humanWon ? 'win' : 'lose');
     $('bres').textContent = res.win ? `${fac(attOwner).short} carries the field.` : `${fac(defOwner).short} holds firm.`;
     $('bres').className = 'bres ' + (humanWon ? 'good' : 'bad');
     done = true; btn.textContent = 'Continue'; await finished; closeModal();
   };
   UI.gameOver = () => {
     busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v4'); } catch (e) { /* ignore */ }
-    const won = G.winner === HUMAN;
+    const won = G.winner === HUMAN; SFX.stopMusic(); SFX.play(won ? 'victory' : 'defeat');
     modal(`<h2>${won ? 'The Vale is yours' : 'Your banner has fallen'}</h2><p>${won ? `After ${G.turn} turns every rival crown lies in the ash. ${esc(FACTIONS[HUMAN].name)} rules ${MAP_NAME}.` : `${esc(FACTIONS[HUMAN].name)} holds no city in ${MAP_NAME}. The war goes on without you.`}</p><div class="row"><button type="button" class="primary" data-a="new">New war</button></div>`);
     waitClick('button[data-a]').then(() => title());
   };
@@ -291,7 +293,7 @@
     modal(`<p class="eyebrow">A turn-based war for ${MAP_NAME}</p><h1 class="logo">Ashen Crowns</h1><p>Four crowns, one valley. Raise armies, send heroes into the old ruins and take every rival seat. Choose your banner.</p>
       <div class="fgrid">${cards}</div>${hasSave() ? '<div class="row"><button type="button" class="primary" data-f="load">Continue saved war</button></div>' : ''}`);
     waitClick('button[data-f]').then(async b => {
-      closeModal();
+      closeModal(); SFX.unlock(); SFX.play('quest'); SFX.startMusic();
       if (b.dataset.f === 'load' && loadGame()) { HUMAN = G.players.findIndex(p => p.human); start(); UI.onHumanTurn(); return; }
       HUMAN = +b.dataset.f || 0; newGame(HUMAN); start();
       const cap = G.cities.find(c => c.capital === HUMAN); centerOn(cap.x, cap.y);
@@ -307,6 +309,7 @@
       <li><b>Battle.</b> Units duel one at a time, weakest first, heroes last. Each exchange both roll a 20-sided die: a unit strikes true if it rolls its strength or less. If only one strikes true, the other loses a hit; otherwise they roll again. A unit dies when its hits run out, and survivors recover after the battle. Strength is the unit's own plus army bonuses: a hero's command, morale from a banner, city walls, terrain skills, spells, minus enemy fear. Strength is capped at 18. Hover an enemy to see the odds.</li>
       <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
       <li><b>Heroes.</b> An army led by a hero wears a crown. Heroes gain experience and choose an advance at each new level, cast spells with mana, and can search ruins (golden glow) for gold, relics or allies, which can kill them. In one of your cities a hero can seek a quest for a reward. A fallen hero's relics stay on the tile until another hero collects them.</li>
+      <li><b>Sound.</b> The Sound and Music buttons in the side panel switch effects and the background tune on or off.</li>
       <li><b>Keys.</b> N next army · E end turn · Esc deselect · arrows scroll.</li></ul>
       <div class="row"><button type="button" class="primary" data-a="ok">Back to the war</button></div>`);
     waitClick('button[data-a]').then(closeModal);
@@ -337,23 +340,28 @@
   $('bEnd').addEventListener('click', endTurn);
   $('bNext').addEventListener('click', () => { if (!busy) nextArmy(); });
   $('bHelp').addEventListener('click', help);
+  const audioLabels = () => { $('bSound').textContent = SFX.soundOn ? 'Sound on' : 'Sound off'; $('bMusic').textContent = SFX.musicOn ? 'Music on' : 'Music off'; };
+  $('bSound').addEventListener('click', () => { SFX.toggleSound(); audioLabels(); });
+  $('bMusic').addEventListener('click', () => { SFX.toggleMusic(); audioLabels(); });
+  audioLabels();
+  for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => { if (G && !G.over && $('modal').hidden) SFX.startMusic(); }, { passive: true });
   $('panel').addEventListener('click', e => {
     if (busy || !G) return;
     const b = e.target.closest('button'); if (!b) return; const d = b.dataset, s = sel && stackById(sel.stackId);
-    if (d.perk && s) { const h = s.units.find(u => u.id === +d.hero); if (h) applyPerk(h, d.perk); sel.dm = null; }
+    if (d.perk && s) { const h = s.units.find(u => u.id === +d.hero); if (h && applyPerk(h, d.perk)) SFX.play('level'); sel.dm = null; }
     else if (d.quest && s) {
       const h = s.units.find(u => u.id === +d.quest), q = h && offerQuest(s, h);
-      if (q) { modal(`<h2>A quest for ${esc(h.hero.name)}</h2><p>${esc(q.text)}</p><p class="muted">Reward: ${QUEST_REWARDS[q.reward]}. A hero carries one quest at a time.</p><div class="row"><button type="button" class="primary" data-a="ok">Accept</button></div>`); waitClick('button[data-a]').then(closeModal); }
+      if (q) { SFX.play('quest'); modal(`<h2>A quest for ${esc(h.hero.name)}</h2><p>${esc(q.text)}</p><p class="muted">Reward: ${QUEST_REWARDS[q.reward]}. A hero carries one quest at a time.</p><div class="row"><button type="button" class="primary" data-a="ok">Accept</button></div>`); waitClick('button[data-a]').then(closeModal); }
     }
     else if (d.unit && s) { const id = +d.unit; if (sel.ids.has(id)) sel.ids.delete(id); else sel.ids.add(id); sel.dm = null; }
-    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h && !castSpell(s, h, d.spell)) setHoverText('That spell cannot be cast now.'); if (SPELLS.find(q => q.key === d.spell).unit) selectStack(s); sel.dm = null; }
+    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h) { if (castSpell(s, h, d.spell)) SFX.play('spell'); else setHoverText('That spell cannot be cast now.'); } if (SPELLS.find(q => q.key === d.spell).unit) selectStack(s); sel.dm = null; }
     else if (d.search && s) {
       const h = s.units.find(u => u.id === +d.search), r = h && searchRuin(s, h);
-      if (r) { const more = G.notices.splice(0).filter(t => t !== r.text).map(t => `<p>${esc(t)}</p>`).join(''); modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p>${more}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
+      if (r) { SFX.play(r.ok ? 'ruin' : 'lose'); const more = G.notices.splice(0).filter(t => t !== r.text).map(t => `<p>${esc(t)}</p>`).join(''); modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p>${more}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
       const again = stackById(s.id); if (again) selectStack(again); else sel = null;
     }
-    else if ('prod' in d) { const c = G.cities[+d.city]; if (!setProduction(c, d.prod || null)) setHoverText(`Not enough gold for ${UNITS[d.prod].name}.`); }
-    else if (d.upgrade) upgradeCity(G.cities[+d.upgrade]);
+    else if ('prod' in d) { const c = G.cities[+d.city]; if (setProduction(c, d.prod || null)) { if (d.prod) SFX.play('coin'); } else setHoverText(`Not enough gold for ${UNITS[d.prod].name}.`); }
+    else if (d.upgrade) { if (upgradeCity(G.cities[+d.upgrade])) SFX.play('build'); }
     refresh();
   });
 

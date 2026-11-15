@@ -59,6 +59,8 @@ button.primary small { color: inherit; }
 .unit:disabled { opacity: 1; }
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
 #btns { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+#audio { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#audio button { font-size: 13px; padding: 5px 8px; color: var(--dust); }
 #log { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
 #modal { position: fixed; inset: 0; background: rgba(8, 10, 12, .78); display: flex; align-items: center; justify-content: center;
   padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); z-index: 20; }
@@ -102,21 +104,56 @@ button.primary small { color: inherit; }
   .battle, .fgrid { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---- interface pass: status strip, framed map, portrait grid ---- */
+#top { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 18px; padding-block: 7px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px;
+  background: linear-gradient(#3a424b, #232a31); border-bottom: 2px solid #0e1114; box-shadow: inset 0 1px 0 #5a6570; }
+#top #turnbar { gap: 14px; font-size: 15px; color: var(--bone); }
+#top #turnbar .who { font: 400 18px/1 var(--display); letter-spacing: .03em; }
+#frame { flex: 1 1 auto; min-height: 0; display: flex; padding: 7px; position: relative;
+  background: linear-gradient(135deg, #8d7a45, #4f4426 30%, #a08a4e 50%, #4f4426 70%, #8d7a45);
+  box-shadow: inset 0 0 0 1px #15110d, inset 0 0 0 2px #c9b46a; }
+#frame::before, #frame::after { content: ""; position: absolute; width: 13px; height: 13px; border-radius: 50%; top: -1px;
+  background: radial-gradient(circle at 35% 35%, #f1dc8a, #7a6630 70%, #2a2210); box-shadow: 0 0 0 1px #15110d; z-index: 1; }
+#frame::before { left: -1px; } #frame::after { right: -1px; }
+#frame #map { box-shadow: 0 0 0 1px #15110d; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.tile { position: relative; aspect-ratio: 1 / 1.22; padding: 0; min-width: 0; overflow: hidden; border-radius: 3px;
+  background: linear-gradient(#5d6770, #2c343b); border: 1px solid #0e1114; box-shadow: inset 0 0 0 1px #6f7a84; }
+.tile img { display: block; width: 100%; height: auto; margin-top: -3%; }
+.tile .tn { position: absolute; left: 0; right: 0; top: 0; padding: 1px 3px; font-size: 9.5px; line-height: 1.25; color: var(--bone); background: rgba(14, 17, 20, .62);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.tile .bs, .tile .bm { position: absolute; bottom: 0; min-width: 19px; padding: 1px 3px; font: 700 12px/1.3 Georgia, serif; font-variant-numeric: tabular-nums; text-align: center; }
+.tile .bs { left: 0; background: #c9a03a; color: #15110d; border-top-right-radius: 4px; }
+.tile .bm { right: 0; background: #15110d; color: var(--bone); border-top-left-radius: 4px; }
+.tile .bh { position: absolute; left: 50%; transform: translateX(-50%); bottom: 3px; display: flex; gap: 1.5px; }
+.tile .bh i { width: 4px; height: 4px; background: var(--good); box-shadow: 0 0 0 1px #15110d; }
+.tile.on { border-color: var(--brass); box-shadow: inset 0 0 0 2px var(--brass); }
+.tile.hero { background: linear-gradient(#7a6a3a, #3a321c); }
+.tile.hero .tn { color: var(--brass); }
+.tile:disabled { opacity: 1; cursor: default; }
+.tile.empty { background: #1a2026; box-shadow: inset 0 0 0 1px #2c343b; border-style: dashed; border-color: #3a4753; }
+@media (max-width: 760px) { #mapwrap { height: 66vh; } .tiles { grid-template-columns: repeat(8, 1fr); } }
+@media (max-width: 520px) { .tiles { grid-template-columns: repeat(4, 1fr); } }
 </style>
 <div id="app">
   <div id="mapwrap">
-    <canvas id="map"></canvas>
+    <header id="top"><div id="turnbar"></div><div id="treasury"></div></header>
+    <div id="frame"><canvas id="map"></canvas></div>
     <div id="hover">Drag to scroll the map.</div>
   </div>
   <aside id="side">
     <h1>Ashen Crowns</h1>
-    <div id="turnbar"></div>
     <canvas id="mini" width="220" height="160"></canvas>
-    <div id="treasury"></div>
     <div id="btns">
       <button type="button" id="bNext">Next army</button>
       <button type="button" id="bEnd" class="primary">End turn</button>
       <button type="button" id="bHelp" aria-label="How to play">?</button>
+    </div>
+    <div id="audio">
+      <button type="button" id="bSound">Sound on</button>
+      <button type="button" id="bMusic">Music on</button>
     </div>
     <div id="panel"></div>
     <ul id="log"></ul>
@@ -245,6 +282,101 @@ const TERRAIN_NAMES = { g: 'Grassland', f: 'Forest', h: 'Hills', m: 'Mountains',
 const HERO_CLASSES = ['champion', 'seer', 'ranger', 'priest', 'warlock', 'paladin'];
 const MUSTER_POOL = ['levy', 'pike', 'archer', 'wolf', 'rider', 'ram', 'bearer', 'reaver', 'troll', 'gryphon', 'warden', 'crossbow', 'shieldwall', 'halberd', 'scout', 'harcher', 'catapult', 'chaplain', 'spider', 'bones'];
 const WILD_ALLIES = ['troll', 'gryphon', 'drake', 'reaver', 'giant', 'elemental', 'wyvern', 'spider', 'treant'];
+'use strict';
+/* Sound: every effect and the background tune are synthesized here with Web Audio. No audio files. */
+
+const SFX = (() => {
+  let ctx = null, master = null, musicGain = null, timer = null, nextBeat = 0, step = 0, last = 3;
+  const pref = k => { try { return localStorage.getItem(k) !== 'off'; } catch (e) { return true; } };
+  const save = (k, on) => { try { localStorage.setItem(k, on ? 'on' : 'off'); } catch (e) { /* ignore */ } };
+  let soundOn = pref('ashen-sound'), musicOn = pref('ashen-music');
+
+  function unlock() {
+    if (typeof AUTO !== 'undefined' && AUTO) return false;
+    try {
+      if (!ctx) {
+        const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return false;
+        ctx = new AC(); master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
+        musicGain = ctx.createGain(); musicGain.gain.value = 0.16; musicGain.connect(master);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      return true;
+    } catch (e) { return false; }
+  }
+  function tone(freq, dur, o = {}) {
+    const t = ctx.currentTime + (o.at || 0), osc = ctx.createOscillator(), g = ctx.createGain();
+    osc.type = o.type || 'triangle'; osc.frequency.setValueAtTime(freq, t);
+    if (o.to) osc.frequency.exponentialRampToValueAtTime(o.to, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.vol || 0.3, t + (o.attack || 0.008)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(o.dest || master); osc.start(t); osc.stop(t + dur + 0.03);
+  }
+  function noise(dur, o = {}) {
+    const t = ctx.currentTime + (o.at || 0), n = Math.max(1, Math.floor(ctx.sampleRate * dur)), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = buf; f.type = o.filter || 'lowpass'; f.frequency.value = o.freq || 800; f.Q.value = o.q || 0.8;
+    g.gain.setValueAtTime(o.vol || 0.3, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t);
+  }
+  const seq = (notes, gap, dur, o = {}) => notes.forEach((f, i) => tone(f, dur, { ...o, at: (o.at || 0) + i * gap }));
+
+  const SOUNDS = {
+    select: () => seq([587, 784], 0.06, 0.09, { vol: 0.16 }),
+    step: () => noise(0.07, { freq: 260, vol: 0.22 }),
+    click: () => tone(440, 0.05, { vol: 0.12, type: 'square' }),
+    dice: () => { for (let i = 0; i < 3; i++) noise(0.03, { at: i * 0.045, filter: 'highpass', freq: 2200, vol: 0.14 }); },
+    hit: () => { noise(0.12, { filter: 'bandpass', freq: 1400, q: 2, vol: 0.32 }); tone(190, 0.12, { type: 'square', to: 90, vol: 0.14 }); },
+    die: () => tone(280, 0.34, { type: 'sawtooth', to: 70, vol: 0.16 }),
+    win: () => seq([523, 659, 784, 1047], 0.11, 0.28, { vol: 0.2 }),
+    lose: () => seq([392, 349, 294, 220], 0.15, 0.36, { vol: 0.18, type: 'sawtooth' }),
+    capture: () => { seq([392, 523, 659], 0.1, 0.24, { vol: 0.2 }); tone(784, 0.6, { at: 0.3, vol: 0.2 }); noise(0.25, { at: 0.3, freq: 500, vol: 0.14 }); },
+    coin: () => seq([1319, 1760], 0.07, 0.14, { type: 'sine', vol: 0.16 }),
+    build: () => { for (let i = 0; i < 3; i++) { noise(0.08, { at: i * 0.14, freq: 420, vol: 0.28 }); tone(120, 0.08, { at: i * 0.14, type: 'square', vol: 0.1 }); } },
+    level: () => seq([523, 659, 784, 988, 1175], 0.07, 0.22, { type: 'sine', vol: 0.18 }),
+    spell: () => { tone(440, 0.5, { type: 'sine', to: 1760, vol: 0.14 }); tone(660, 0.5, { type: 'sine', to: 2640, vol: 0.08, at: 0.05 }); },
+    quest: () => seq([392, 494, 587], 0.12, 0.3, { vol: 0.18 }),
+    ruin: () => { tone(98, 0.5, { type: 'sine', vol: 0.22 }); seq([784, 988, 1175], 0.1, 0.3, { at: 0.2, type: 'sine', vol: 0.14 }); },
+    turn: () => { tone(523, 0.9, { type: 'sine', vol: 0.18 }); tone(784, 0.9, { type: 'sine', vol: 0.09 }); tone(1568, 0.5, { type: 'sine', vol: 0.03 }); },
+    victory: () => { seq([392, 392, 523, 659, 784], 0.16, 0.32, { vol: 0.22 }); tone(1047, 1.2, { at: 0.8, vol: 0.22 }); tone(523, 1.2, { at: 0.8, vol: 0.14 }); },
+    defeat: () => { seq([294, 262, 220, 196], 0.28, 0.6, { type: 'sawtooth', vol: 0.14 }); tone(73, 1.8, { at: 0.6, type: 'sine', vol: 0.26 }); },
+  };
+  let lastStep = 0;
+  function play(name) {
+    if (!soundOn || !SOUNDS[name] || !unlock() || ctx.state !== 'running') return;
+    if (name === 'step') { const now = performance.now(); if (now - lastStep < 90) return; lastStep = now; }
+    try { SOUNDS[name](); } catch (e) { /* audio is optional */ }
+  }
+
+  /* Background tune: a slow, wandering melody over a drone, made up as it goes (D dorian). */
+  const SCALE = [293.66, 329.63, 349.23, 392.0, 440.0, 523.25, 587.33, 659.25], BEAT = 0.42;
+  function scheduleMusic() {
+    if (!ctx || ctx.state !== 'running') return;
+    while (nextBeat < ctx.currentTime + 0.6) {
+      const at = Math.max(0, nextBeat - ctx.currentTime), bar = step % 16;
+      if (bar === 0) { tone(73.42, BEAT * 15, { type: 'sine', vol: 0.5, attack: 0.6, at, dest: musicGain }); tone(110, BEAT * 15, { type: 'sine', vol: 0.28, attack: 0.8, at, dest: musicGain }); }
+      if (bar % 4 === 0) tone(146.83 * (bar === 8 ? 1.5 : 1), BEAT * 3, { type: 'triangle', vol: 0.3, at, dest: musicGain });
+      if (Math.random() < (bar % 2 === 0 ? 0.8 : 0.35)) {
+        last = Math.max(0, Math.min(SCALE.length - 1, last + [-2, -1, -1, 0, 1, 1, 2][Math.floor(Math.random() * 7)]));
+        if (bar === 15) last = 0;
+        tone(SCALE[last], BEAT * 2.4, { type: 'triangle', vol: 0.4, at, dest: musicGain });
+        tone(SCALE[last] * 2, BEAT * 1.2, { type: 'sine', vol: 0.06, at, dest: musicGain });
+      }
+      nextBeat += BEAT; step++;
+    }
+  }
+  function startMusic() {
+    if (!musicOn || timer || !unlock()) return;
+    nextBeat = ctx.currentTime + 0.2; timer = setInterval(scheduleMusic, 150);
+  }
+  function stopMusic() { if (timer) { clearInterval(timer); timer = null; } }
+
+  return {
+    play, unlock, startMusic, stopMusic,
+    get soundOn() { return soundOn; }, get musicOn() { return musicOn; },
+    toggleSound() { soundOn = !soundOn; save('ashen-sound', soundOn); if (soundOn) play('click'); return soundOn; },
+    toggleMusic() { musicOn = !musicOn; save('ashen-music', musicOn); if (musicOn) startMusic(); else stopMusic(); return musicOn; },
+  };
+})();
 'use strict';
 /* Deterministic map builder: the same seed always yields the same land. */
 
@@ -1601,20 +1733,22 @@ function paintTerrain() {
   function loop() { render(); requestAnimationFrame(loop); }
 
   /* ---------- side panel ---------- */
+  /* A unit portrait: figure, strength bottom-left, movement left bottom-right. */
   function unitCard(u, owner, picked, clickable) {
     const ab = U(u).abil.map(a => ABILITIES[a]).join(' · ');
-    const extra = u.hero ? `Lv ${u.hero.level} · mana ${u.hero.mana}/${uMaxMana(u)}` : '';
-    return `<button type="button" class="unit${u.hero ? ' hero' : ''}${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(ab || 'No special ability')}">
-      <img src="${spriteURL(u.type, owner)}" alt=""><span class="un">${esc(uName(u))}${u.bless ? ' ✦' : ''}</span>
-      <span class="us">Str ${uStr(u)} · Hits ${uMaxHp(u)} · Move ${Math.max(0, Math.floor(u.mp))}/${uMaxMp(u)}</span>${extra ? `<span class="us">${extra}</span>` : ''}</button>`;
+    const tip = `${uName(u)}${u.hero ? `, level ${u.hero.level} ${U(u).name}` : ''}: strength ${uStr(u)}, hits ${uMaxHp(u)}, movement ${Math.max(0, Math.floor(u.mp))} of ${uMaxMp(u)}${u.hero ? `, mana ${u.hero.mana}/${uMaxMana(u)}` : ''}. ${ab || 'No special ability.'}`;
+    return `<button type="button" class="tile${u.hero ? ' hero' : ''}${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(tip)}">
+      <img src="${spriteURL(u.type, owner)}" alt=""><span class="tn">${esc(uName(u))}${u.bless ? ' ✦' : ''}</span>
+      <span class="bs">${uStr(u)}</span><span class="bh">${'<i></i>'.repeat(uMaxHp(u))}</span><span class="bm">${Math.max(0, Math.floor(u.mp))}</span></button>`;
   }
   function panelHTML() {
     let h = '';
     const s = sel && stackById(sel.stackId);
     if (s) {
-      h += `<h2>Army <span class="muted">${s.units.length}/${MAX_STACK}</span></h2><div class="units">`;
+      h += `<h2>Army <span class="muted">${s.units.length}/${MAX_STACK}</span></h2><div class="tiles">`;
       for (const u of s.units.slice().sort((a, b) => !!b.hero - !!a.hero)) h += unitCard(u, s.owner, sel.ids.has(u.id), true);
-      h += '</div><p class="hint">Click a unit to leave it behind. Click the map to march.</p>';
+      h += '<span class="tile empty"></span>'.repeat(MAX_STACK - s.units.length);
+      h += '</div><p class="hint">Left number: strength. Right number: movement left. Green pips: hits. Click a unit to leave it behind.</p>';
       const hero = s.units.find(u => u.hero && sel.ids.has(u.id));
       if (hero) {
         h += `<h3>${esc(hero.hero.name)}</h3><p class="muted">Level ${hero.hero.level} ${U(hero).name} · ${hero.hero.xp}/${xpFor(hero.hero.level)} xp${heroLead(hero) ? ` · command +${heroLead(hero)}` : ''}</p>`;
@@ -1641,7 +1775,7 @@ function paintTerrain() {
       const mine = c.owner === HUMAN;
       h += `<h2 style="color:${fac(c.owner).color}">${esc(c.name)}</h2><p class="muted">${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''}<br>${TIER_NAMES[c.level]} (tier ${c.level} of 3) · walls +${wallBonus(c)} · ${cityIncome(c)} gold/turn</p>`;
       const gar = cityUnits(c);
-      h += `<h3>Garrison <span class="muted">${gar.length}</span></h3>` + (gar.length ? '<div class="units">' + gar.map(u => unitCard(u, c.owner, false, false)).join('') + '</div>' : '<p class="muted">Undefended.</p>');
+      h += `<h3>Garrison <span class="muted">${gar.length}</span></h3>` + (gar.length ? '<div class="tiles">' + gar.map(u => unitCard(u, c.owner, false, false)).join('') + '</div>' : '<p class="muted">Undefended.</p>');
       if (mine) {
         h += '<h3>Muster</h3><div class="prod">';
         for (const t of c.prod) {
@@ -1670,7 +1804,7 @@ function paintTerrain() {
   }
 
   /* ---------- selection and orders ---------- */
-  function selectStack(s) { sel = { stackId: s.id, ids: new Set(s.units.filter(u => u.mp >= 1).map(u => u.id)) }; if (!sel.ids.size) sel.ids = new Set(s.units.map(u => u.id)); selCity = null; preview = null; refresh(); }
+  function selectStack(s) { SFX.play('select'); sel = { stackId: s.id, ids: new Set(s.units.filter(u => u.mp >= 1).map(u => u.id)) }; if (!sel.ids.size) sel.ids = new Set(s.units.map(u => u.id)); selCity = null; preview = null; refresh(); }
   function deselect() { sel = null; selCity = null; preview = null; refresh(); }
   function selUnits() { const s = sel && stackById(sel.stackId); return s ? s.units.filter(u => sel.ids.has(u.id)) : []; }
   function nextArmy() {
@@ -1710,9 +1844,9 @@ function paintTerrain() {
     const s = stackById(sel.stackId), units = selUnits(); if (!s || !units.length) return;
     const dm = dijkstraMap(units, HUMAN, s.x, s.y), path = pathTo(dm, tx, ty);
     if (!path || !path.length) { setHoverText('No route there for this army.'); return; }
-    const ids = units.map(u => u.id); busy = true; preview = null; refresh();
+    const ids = units.map(u => u.id), had = G.cities.filter(c => c.owner === HUMAN).length; busy = true; preview = null; refresh();
     const end = await moveGroup(s, ids, path, 55);
-    busy = false;
+    busy = false; if (G.cities.filter(c => c.owner === HUMAN).length > had) SFX.play('capture');
     const left = end && end.owner === HUMAN ? end.units.filter(u => ids.includes(u.id)) : [];
     sel = left.length ? { stackId: end.id, ids: new Set(left.map(u => u.id)) } : null; selCity = null;
     if (G.over) { UI.gameOver(); return; }
@@ -1742,10 +1876,10 @@ function paintTerrain() {
     modal(`<h2>News of your heroes</h2>${list.map(t => `<p>${esc(t)}</p>`).join('')}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`);
     waitClick('button[data-a]').then(closeModal);
   }
-  UI.tick = async (delay, stack) => { if (stack && onScreen(stack.x, stack.y)) await sleep(delay); };
+  UI.tick = async (delay, stack) => { if (stack && stack.owner === HUMAN) SFX.play('step'); if (stack && onScreen(stack.x, stack.y)) await sleep(delay); };
   UI.refresh = refresh;
   UI.onHumanTurn = () => {
-    busy = false; sel = null; selCity = null;
+    busy = false; sel = null; selCity = null; SFX.play('turn');
     const first = G.stacks.find(s => s.owner === HUMAN && s.units.some(u => u.mp >= 2));
     if (first) { selectStack(first); centerOn(first.x, first.y); } else refresh();
     showNotices();
@@ -1767,19 +1901,19 @@ function paintTerrain() {
     const finished = new Promise(resolve => btn.addEventListener('click', () => { if (done) resolve(); else skip = true; }));
     for (const e of res.events) {
       if (e.k === 'duel') { $('mbox').querySelectorAll('.bu.act').forEach(n => n.classList.remove('act')); for (const id of [e.a, e.d]) { const n = $('bu' + id); if (n) n.classList.add('act'); } }
-      else if (e.k === 'roll') { const da = $('dieA'), dd = $('dieD'); da.textContent = e.ra; dd.textContent = e.rd; da.className = 'die ' + (e.aOk ? 'ok' : 'miss'); dd.className = 'die ' + (e.aOk ? 'miss' : 'ok'); }
-      else if (e.k === 'hit') { const n = $('bu' + e.id); if (n) { const pips = n.querySelectorAll('.pips i'); pips.forEach((p, i) => p.classList.toggle('lost', i >= e.hp)); n.classList.add('hit'); setTimeout(() => n.classList.remove('hit'), 120); } }
-      else if (e.k === 'die') { const n = $('bu' + e.id); if (n) n.classList.add('dead'); }
+      else if (e.k === 'roll') { if (!skip) SFX.play('dice'); const da = $('dieA'), dd = $('dieD'); da.textContent = e.ra; dd.textContent = e.rd; da.className = 'die ' + (e.aOk ? 'ok' : 'miss'); dd.className = 'die ' + (e.aOk ? 'miss' : 'ok'); }
+      else if (e.k === 'hit') { if (!skip) SFX.play('hit'); const n = $('bu' + e.id); if (n) { const pips = n.querySelectorAll('.pips i'); pips.forEach((p, i) => p.classList.toggle('lost', i >= e.hp)); n.classList.add('hit'); setTimeout(() => n.classList.remove('hit'), 120); } }
+      else if (e.k === 'die') { if (!skip) SFX.play('die'); const n = $('bu' + e.id); if (n) n.classList.add('dead'); }
       if (!skip) await sleep(e.k === 'duel' ? 260 : e.k === 'roll' ? 300 : 170);
     }
-    const humanWon = (attOwner === HUMAN) === res.win;
+    const humanWon = (attOwner === HUMAN) === res.win; SFX.play(humanWon ? 'win' : 'lose');
     $('bres').textContent = res.win ? `${fac(attOwner).short} carries the field.` : `${fac(defOwner).short} holds firm.`;
     $('bres').className = 'bres ' + (humanWon ? 'good' : 'bad');
     done = true; btn.textContent = 'Continue'; await finished; closeModal();
   };
   UI.gameOver = () => {
     busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v4'); } catch (e) { /* ignore */ }
-    const won = G.winner === HUMAN;
+    const won = G.winner === HUMAN; SFX.stopMusic(); SFX.play(won ? 'victory' : 'defeat');
     modal(`<h2>${won ? 'The Vale is yours' : 'Your banner has fallen'}</h2><p>${won ? `After ${G.turn} turns every rival crown lies in the ash. ${esc(FACTIONS[HUMAN].name)} rules ${MAP_NAME}.` : `${esc(FACTIONS[HUMAN].name)} holds no city in ${MAP_NAME}. The war goes on without you.`}</p><div class="row"><button type="button" class="primary" data-a="new">New war</button></div>`);
     waitClick('button[data-a]').then(() => title());
   };
@@ -1790,7 +1924,7 @@ function paintTerrain() {
     modal(`<p class="eyebrow">A turn-based war for ${MAP_NAME}</p><h1 class="logo">Ashen Crowns</h1><p>Four crowns, one valley. Raise armies, send heroes into the old ruins and take every rival seat. Choose your banner.</p>
       <div class="fgrid">${cards}</div>${hasSave() ? '<div class="row"><button type="button" class="primary" data-f="load">Continue saved war</button></div>' : ''}`);
     waitClick('button[data-f]').then(async b => {
-      closeModal();
+      closeModal(); SFX.unlock(); SFX.play('quest'); SFX.startMusic();
       if (b.dataset.f === 'load' && loadGame()) { HUMAN = G.players.findIndex(p => p.human); start(); UI.onHumanTurn(); return; }
       HUMAN = +b.dataset.f || 0; newGame(HUMAN); start();
       const cap = G.cities.find(c => c.capital === HUMAN); centerOn(cap.x, cap.y);
@@ -1806,6 +1940,7 @@ function paintTerrain() {
       <li><b>Battle.</b> Units duel one at a time, weakest first, heroes last. Each exchange both roll a 20-sided die: a unit strikes true if it rolls its strength or less. If only one strikes true, the other loses a hit; otherwise they roll again. A unit dies when its hits run out, and survivors recover after the battle. Strength is the unit's own plus army bonuses: a hero's command, morale from a banner, city walls, terrain skills, spells, minus enemy fear. Strength is capped at 18. Hover an enemy to see the odds.</li>
       <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
       <li><b>Heroes.</b> An army led by a hero wears a crown. Heroes gain experience and choose an advance at each new level, cast spells with mana, and can search ruins (golden glow) for gold, relics or allies, which can kill them. In one of your cities a hero can seek a quest for a reward. A fallen hero's relics stay on the tile until another hero collects them.</li>
+      <li><b>Sound.</b> The Sound and Music buttons in the side panel switch effects and the background tune on or off.</li>
       <li><b>Keys.</b> N next army · E end turn · Esc deselect · arrows scroll.</li></ul>
       <div class="row"><button type="button" class="primary" data-a="ok">Back to the war</button></div>`);
     waitClick('button[data-a]').then(closeModal);
@@ -1836,23 +1971,28 @@ function paintTerrain() {
   $('bEnd').addEventListener('click', endTurn);
   $('bNext').addEventListener('click', () => { if (!busy) nextArmy(); });
   $('bHelp').addEventListener('click', help);
+  const audioLabels = () => { $('bSound').textContent = SFX.soundOn ? 'Sound on' : 'Sound off'; $('bMusic').textContent = SFX.musicOn ? 'Music on' : 'Music off'; };
+  $('bSound').addEventListener('click', () => { SFX.toggleSound(); audioLabels(); });
+  $('bMusic').addEventListener('click', () => { SFX.toggleMusic(); audioLabels(); });
+  audioLabels();
+  for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => { if (G && !G.over && $('modal').hidden) SFX.startMusic(); }, { passive: true });
   $('panel').addEventListener('click', e => {
     if (busy || !G) return;
     const b = e.target.closest('button'); if (!b) return; const d = b.dataset, s = sel && stackById(sel.stackId);
-    if (d.perk && s) { const h = s.units.find(u => u.id === +d.hero); if (h) applyPerk(h, d.perk); sel.dm = null; }
+    if (d.perk && s) { const h = s.units.find(u => u.id === +d.hero); if (h && applyPerk(h, d.perk)) SFX.play('level'); sel.dm = null; }
     else if (d.quest && s) {
       const h = s.units.find(u => u.id === +d.quest), q = h && offerQuest(s, h);
-      if (q) { modal(`<h2>A quest for ${esc(h.hero.name)}</h2><p>${esc(q.text)}</p><p class="muted">Reward: ${QUEST_REWARDS[q.reward]}. A hero carries one quest at a time.</p><div class="row"><button type="button" class="primary" data-a="ok">Accept</button></div>`); waitClick('button[data-a]').then(closeModal); }
+      if (q) { SFX.play('quest'); modal(`<h2>A quest for ${esc(h.hero.name)}</h2><p>${esc(q.text)}</p><p class="muted">Reward: ${QUEST_REWARDS[q.reward]}. A hero carries one quest at a time.</p><div class="row"><button type="button" class="primary" data-a="ok">Accept</button></div>`); waitClick('button[data-a]').then(closeModal); }
     }
     else if (d.unit && s) { const id = +d.unit; if (sel.ids.has(id)) sel.ids.delete(id); else sel.ids.add(id); sel.dm = null; }
-    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h && !castSpell(s, h, d.spell)) setHoverText('That spell cannot be cast now.'); if (SPELLS.find(q => q.key === d.spell).unit) selectStack(s); sel.dm = null; }
+    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h) { if (castSpell(s, h, d.spell)) SFX.play('spell'); else setHoverText('That spell cannot be cast now.'); } if (SPELLS.find(q => q.key === d.spell).unit) selectStack(s); sel.dm = null; }
     else if (d.search && s) {
       const h = s.units.find(u => u.id === +d.search), r = h && searchRuin(s, h);
-      if (r) { const more = G.notices.splice(0).filter(t => t !== r.text).map(t => `<p>${esc(t)}</p>`).join(''); modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p>${more}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
+      if (r) { SFX.play(r.ok ? 'ruin' : 'lose'); const more = G.notices.splice(0).filter(t => t !== r.text).map(t => `<p>${esc(t)}</p>`).join(''); modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p>${more}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
       const again = stackById(s.id); if (again) selectStack(again); else sel = null;
     }
-    else if ('prod' in d) { const c = G.cities[+d.city]; if (!setProduction(c, d.prod || null)) setHoverText(`Not enough gold for ${UNITS[d.prod].name}.`); }
-    else if (d.upgrade) upgradeCity(G.cities[+d.upgrade]);
+    else if ('prod' in d) { const c = G.cities[+d.city]; if (setProduction(c, d.prod || null)) { if (d.prod) SFX.play('coin'); } else setHoverText(`Not enough gold for ${UNITS[d.prod].name}.`); }
+    else if (d.upgrade) { if (upgradeCity(G.cities[+d.upgrade])) SFX.play('build'); }
     refresh();
   });
 

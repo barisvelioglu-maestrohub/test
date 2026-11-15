@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 FONTS='<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;700&family=Almendra+SC&display=swap">'
-JS="js/data.js js/mapgen.js js/rules.js js/ai.js js/sprites.js js/ui.js"
+JS="js/data.js js/sound.js js/mapgen.js js/rules.js js/ai.js js/sprites.js js/ui.js"
 inner() {
   echo '<title>Ashen Crowns</title>'
   echo '<meta name="claude:viewport-fit-sides" content="cover">'
