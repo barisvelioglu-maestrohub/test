@@ -1,36 +1,161 @@
 'use strict';
 /* Original pixel art, drawn in code: unit sprites from character grids, terrain and cities procedurally. */
 
-const PAL = { k: '#1a1423', w: '#f2efe6', g: '#9aa0a8', d: '#5b6068', s: '#e2b48c', b: '#7a4e2a', B: '#4d2f18', y: '#e8c04a',
-  r: '#c0392b', o: '#e67e22', n: '#5aa845', N: '#2f6b2b', u: '#3d7dd8', p: '#7d4fb3', e: '#d9d4b8', t: '#3aa39a' };
-
-const ART = {
-  levy: ['.....kk.....', '....kssk..g.', '....kssk..g.', '...kFFFFk.b.', '..kFFFFFFkb.', '..kFfFFfFsb.', '..ksFFFFk.b.', '...kFFFFk.b.', '...kbbbbk.b.', '...kb..bk...', '...kb..bk...', '..kkk..kkk..'],
-  pike: ['.g...kkk....', '.g..kgggk...', '.g..kgssk...', '.g..kkssk...', '.b.kFFFFFk..', '.bskFFwwFFk.', '.b.kFwFFwFk.', '.b.kFFwwFFk.', '.b..kffffk..', '.b..kd..dk..', '.b..kd..dk..', '...kkk..kkk.'],
-  archer: ['....kkk.....', '...kNNNk..k.', '...kssNk.kb.', '...kssk.k.b.', '..kFFFFk..b.', '.kFFFFFsyyb.', '.kFfFFFk..b.', '..kFFFFk.kb.', '..kbffbk..k.', '..kb..bk....', '..kb..bk....', '.kkk..kkk...'],
-  rider: ['......kk....', '.....kggk...', '.....kssk...', '..kk.kFFk...', '.kbbkFFFFk..', 'kbbbbkFFkbk.', 'kbkbbbbbbbbk', '.k.kbbbbbbbk', '...kbbbbbbk.', '...kbk..kbk.', '...kbk..kbk.', '...kk...kk..'],
-  warden: ['....kkkk....', '...kNNNNk...', '...kNssNk.k.', '...kNssk.kn.', '..kNNNNk.kn.', '.kNFFFNsttn.', '.kNFFFNk.kn.', '..kNFFNk.kn.', '..kNNNNk..k.', '..kn..nk....', '..kn..nk....', '.kkk..kkk...'],
-  reaver: ['............', '..kk..kkkk..', '.kggk.kggk..', '.kggkkkssk..', '..kb.koook..', '..kbkFoooFk.', '..kskFFooFk.', '..kb.kFFFFk.', '..kb.kFffFk.', '.....kd..dk.', '....kkd..dkk', '....kkk..kkk'],
-  wolf: ['............', '............', '.k.......kk.', 'kgk.....kggk', 'kggkkkkkgkgk', '.kgggggggggk', '.kggggggggk.', '.kgdggggdgk.', '.kgkkggkkgk.', '.kgk.kk.kgk.', '.kgk....kgk.', '.kk......kk.'],
-  ram: ['............', '.kkkkkkkkkk.', 'kFFFFFFFFFFk', 'kFffFFFFffFk', '.kkkkkkkkkk.', 'kbbbbbbbbkgk', 'kBBBBBBBBkgk', 'kbbbbbbbbkgk', '.kkkkkkkkkk.', '.kddk..kddk.', '.kddk..kddk.', '..kk....kk..'],
-  bearer: ['.kkkkkk.....', '.kFFFFFk....', '.kFyyFFk.kk.', '.kFFyFFkkssk', '.kFFFFk.kssk', '.kkkkk.kFFFk', '.b....kFFFFk', '.b....sFFFFk', '.b....kFffk.', '.b....kd.dk.', '.b....kd.dk.', '.....kkk.kkk'],
-  gryphon: ['k.........k.', 'kw.......kwk', 'kwwk.kkk.kwk', 'kwwwkyyykwwk', '.kwwkyykywk.', '.kwwbbbbwwk.', '..kkbbbbkk..', '..kbbbbbbk..', '..kbbkkbbk..', '..kyk..kyk..', '..kyk..kyk..', '..kk....kk..'],
-  troll: ['...kkkk.....', '..knnnnk..kk', '..knrnrk.kbk', '..knnnnk.kbk', '.knnnnnnkkbk', 'knnnNNnnnnbk', 'knnkNNknnkk.', 'knnkNNkk....', '.kkknnk.....', '..knkknk....', '..knk.knk...', '.kkk..kkk...'],
-  drake: ['.....kk...k.', '....krrk.krk', '.kk.krykkrrk', 'krrkkrrkrrrk', 'krrrkrrrrrk.', '.krrrrrrrrk.', '..krroorrk..', '..krroorrkk.', '..krrrrrkrk.', '..krk.krkkrk', '..krk.krk.kk', '..kk..kk....'],
-  champion: ['.....yy...w.', '....kyyk..w.', '...kggggk.w.', '...kgkkgk.w.', '...kggggk.w.', '..kFFFFFFkyk', '.kFFyFFyFFbk', '.kgFFyyFFgk.', '..kgFFFFgk..', '...kggggk...', '...kg..gk...', '..kkk..kkk..'],
-  seer: ['.y...kk.....', 'yty.kppk....', '.y.kppppk...', '.b.kpsspk...', '.b.kwsswk...', '.bkpwwwwpk..', '.bspFwwFppk.', '.bkpFFFFpk..', '.b.kpFFpk...', '.b.kppppk...', '.b.kppppk...', '...kkkkkk...'],
-};
-
+const INK = '#1d1712', WOOD = '#8a5a2b', STEEL = '#b9bec6', MAIL = '#8d9299', SKIN = '#e8bd95', BONE = '#f2efe6', GOLD = '#e8c04a';
 const spriteCache = {};
 function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 
+/* Small drawing kit: every figure is laid out in a 64 x 64 box with inked outlines. */
+function pen(x) {
+  const g = { x };
+  g.P = (pts, fill, close = true) => { x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); if (close) x.closePath(); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
+  g.C = (cx, cy, r, fill) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
+  g.E = (cx, cy, rx, ry, fill, stroke = true) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fillStyle = fill; x.fill(); if (stroke) x.stroke(); };
+  g.L = (x1, y1, x2, y2, col, w = 2.5) => { x.save(); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.lineWidth = w + 2.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = w; x.strokeStyle = col; x.stroke(); x.restore(); };
+  g.dot = (cx, cy, r, col) => { x.fillStyle = col; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); };
+  g.shade = pts => { x.save(); x.globalAlpha = 0.24; x.fillStyle = '#000'; x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.fill(); x.restore(); };
+  g.arm = (x1, y1, x2, y2, col, w = 5) => { g.L(x1, y1, x2, y2, col, w); g.C(x2, y2, 2.6, SKIN); };
+  g.cap = (cx, cy, r, col) => { x.beginPath(); x.arc(cx, cy, r, Math.PI, 0); x.closePath(); x.fillStyle = col; x.fill(); x.stroke(); };
+  g.eyes = (cx, cy) => { x.fillStyle = INK; x.fillRect(cx - 3.2, cy, 1.7, 2.2); x.fillRect(cx + 1.5, cy, 1.7, 2.2); };
+  g.man = o => {
+    const cx = o.cx ?? 32, w = o.w ?? 9, top = o.top ?? 25, hip = o.hip ?? 44, foot = 58;
+    g.P([[cx - w + 2, hip - 1], [cx - 1, hip - 1], [cx - 2, foot], [cx - w, foot]], o.legs);
+    g.P([[cx + 1, hip - 1], [cx + w - 2, hip - 1], [cx + w, foot], [cx + 2, foot]], o.legs);
+    g.P([[cx - w - 1, foot - 3], [cx - 1, foot - 3], [cx - 1, foot + 1], [cx - w - 2, foot + 1]], '#3a2a1c');
+    g.P([[cx + 1, foot - 3], [cx + w + 1, foot - 3], [cx + w + 2, foot + 1], [cx + 1, foot + 1]], '#3a2a1c');
+    g.P([[cx - w, top], [cx + w, top], [cx + w - 1, hip + 2], [cx - w + 1, hip + 2]], o.body);
+    if (o.tabard) g.P([[cx - 5, top], [cx + 5, top], [cx + 4, hip + 3], [cx - 4, hip + 3]], o.tabard);
+    g.shade([[cx + 2, top + 1], [cx + w - 1, top + 1], [cx + w - 2, hip + 1], [cx + 2, hip + 1]]);
+    if (o.belt) { x.fillStyle = o.belt; x.fillRect(cx - w + 1.5, hip - 4, 2 * w - 3, 3); }
+    g.C(cx, top - 7, 6.5, o.skin || SKIN); g.eyes(cx, top - 8);
+  };
+  return g;
+}
+
+const DRAW = {
+  levy(g, f) {
+    g.L(48, 8, 48, 59, WOOD); g.P([[48, 1], [51.5, 10], [44.5, 10]], STEEL);
+    g.man({ body: f.color, legs: '#6b4a2a', belt: '#3a2a1c' });
+    g.cap(32, 16, 7, '#5a3b1e'); g.arm(41, 29, 48, 36, f.color); g.arm(23, 29, 20, 41, f.color);
+  },
+  pike(g, f) {
+    g.L(14, 9, 14, 60, WOOD); g.P([[14, 0], [17.5, 10], [10.5, 10]], STEEL);
+    g.man({ body: MAIL, legs: '#55504a', tabard: f.color });
+    g.arm(23, 29, 14, 37, MAIL);
+    g.P([[35, 28], [53, 28], [53, 40], [44, 53], [35, 40]], f.color); g.shade([[44, 29], [52, 29], [52, 40], [44, 51]]);
+    g.L(38.5, 33, 44, 39, BONE, 2); g.L(44, 39, 49.5, 33, BONE, 2);
+    g.cap(32, 16.5, 7.5, STEEL); g.x.fillStyle = INK; g.x.fillRect(31, 15, 2, 6);
+  },
+  archer(g, f) {
+    g.P([[19, 21], [25, 21], [24, 41], [20, 41]], '#7a4e2a'); g.L(21, 21, 20, 15, BONE, 1.5); g.L(23.5, 21, 24, 14, BONE, 1.5);
+    g.man({ body: f.color, legs: '#4a5a34', belt: '#3a2a1c' });
+    const x = g.x; x.save(); x.beginPath(); x.arc(36, 34, 21, -1.05, 1.05); x.lineWidth = 5.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = 3; x.strokeStyle = WOOD; x.stroke(); x.restore();
+    g.L(46.5, 16, 46.5, 52, BONE, 1); g.arm(41, 29, 56, 34, f.color); g.arm(23, 29, 31, 37, f.color);
+    g.cap(32, 16, 7, '#3f7a36'); g.P([[24, 16], [40, 16], [43, 18], [23, 18]], '#3f7a36'); g.L(36, 12, 43, 4, GOLD, 2);
+  },
+  warden(g, f) {
+    g.P([[20, 24], [44, 24], [49, 55], [15, 55]], '#2f5d34'); g.shade([[34, 25], [44, 25], [48, 54], [34, 54]]);
+    g.man({ body: f.color, legs: '#3d3a2a', w: 8, belt: '#2a2118' });
+    const x = g.x; x.save(); x.beginPath(); x.arc(33, 34, 22, -1.1, 1.1); x.lineWidth = 5.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = 3; x.strokeStyle = '#3aa39a'; x.stroke(); x.restore();
+    g.L(43, 15, 43, 53, BONE, 1); g.arm(40, 29, 55, 34, f.color); g.arm(24, 29, 31, 37, f.color);
+    g.P([[23.5, 21], [25, 12], [32, 6], [39, 12], [40.5, 21], [37, 14], [32, 11.5], [27, 14]], '#2f5d34');
+  },
+  reaver(g, f) {
+    g.L(51, 12, 51, 59, WOOD, 3); g.P([[51, 10], [61, 6], [63, 20], [51, 25]], STEEL); g.shade([[55, 15], [62, 19], [52, 24]]);
+    g.man({ body: MAIL, legs: '#4d3a2a', w: 12, top: 31, hip: 46, tabard: f.color, belt: '#2a2118' });
+    g.P([[24.5, 25], [39.5, 25], [37, 37], [32, 41], [27, 37]], '#d9732a');
+    g.P([[26, 16], [19, 9], [24.5, 18]], BONE); g.P([[38, 16], [45, 9], [39.5, 18]], BONE);
+    g.cap(32, 22, 7.5, STEEL); g.arm(44, 35, 51, 41, MAIL, 6); g.arm(20, 35, 17, 46, MAIL, 6);
+  },
+  bearer(g, f) {
+    g.L(25, 2, 25, 60, WOOD); g.P([[25, 3], [3, 3], [9, 12], [3, 21], [25, 21]], f.color); g.shade([[25, 12], [8, 12], [3, 21], [25, 21]]); g.C(16, 12, 4, GOLD);
+    g.man({ cx: 41, body: MAIL, legs: '#55504a', tabard: f.color });
+    g.cap(41, 16.5, 7.5, STEEL); g.arm(32, 29, 25, 37, MAIL); g.arm(50, 29, 53, 41, MAIL);
+  },
+  champion(g, f) {
+    g.P([[21, 26], [43, 26], [48, 56], [16, 56]], f.dark);
+    g.L(51, 5, 51, 33, '#e6eaef', 3); g.L(46.5, 32, 55.5, 32, GOLD, 2.5);
+    g.man({ body: STEEL, legs: MAIL, tabard: f.color }); g.C(32, 34, 2.4, GOLD);
+    g.C(32, 18, 7.2, '#c9ced6'); g.x.fillStyle = INK; g.x.fillRect(26.5, 16.5, 11, 2.4); g.x.fillRect(31, 18, 2, 5);
+    g.P([[25.5, 12.5], [27, 5.5], [30, 10.5], [32, 4], [34, 10.5], [37, 5.5], [38.5, 12.5]], GOLD);
+    g.arm(41, 29, 51, 36, STEEL);
+    g.P([[9, 28], [27, 28], [27, 40], [18, 52], [9, 40]], f.color); g.shade([[18, 29], [26, 29], [26, 40], [18, 50]]); g.C(18, 37, 3, GOLD);
+  },
+  seer(g, f) {
+    g.L(13, 12, 13, 60, WOOD);
+    const x = g.x, gl = x.createRadialGradient(13, 7, 0, 13, 7, 12); gl.addColorStop(0, 'rgba(150,255,240,.9)'); gl.addColorStop(1, 'rgba(150,255,240,0)'); x.fillStyle = gl; x.fillRect(1, -5, 24, 24);
+    g.C(13, 7, 4.5, '#8ff0e2');
+    g.P([[23, 25], [41, 25], [48, 59], [16, 59]], '#6f4aa8'); g.P([[28.5, 25], [35.5, 25], [37, 59], [27, 59]], f.color); g.shade([[35, 26], [41, 26], [47, 58], [36, 58]]);
+    g.arm(24, 29, 13, 37, '#6f4aa8'); g.arm(40, 29, 45, 41, '#6f4aa8');
+    g.C(32, 18, 6.5, SKIN); g.eyes(32, 16.5);
+    g.P([[26.5, 21], [37.5, 21], [36, 33], [32, 37], [28, 33]], BONE);
+    g.P([[21, 15], [43, 15], [37, 11.5], [31, -1], [27, 11.5]], '#6f4aa8'); g.L(27.5, 12.5, 36.5, 12.5, f.color, 2);
+  },
+  rider(g, f) {
+    g.P([[13, 35], [5, 40], [7, 55], [12, 46]], '#3a2416');
+    for (const lx of [14, 22, 37, 44]) g.P([[lx, 43], [lx + 5, 43], [lx + 4.5, 59], [lx + 0.5, 59]], '#6f4526');
+    g.E(30, 40, 17.5, 9, '#8a5a32'); g.P([[40, 37], [47, 22], [55, 24], [49, 43]], '#8a5a32');
+    g.P([[46, 20], [57, 18], [63, 27], [59, 31], [50, 29]], '#8a5a32'); g.P([[48, 20], [49, 13], [53, 19]], '#8a5a32');
+    g.P([[41, 34], [46, 21], [43, 21], [38, 32]], '#3a2416'); g.dot(56, 22.5, 1.3, INK);
+    g.P([[21, 32], [37, 32], [38, 45], [20, 45]], f.color); g.shade([[30, 33], [37, 33], [37.5, 44], [30, 44]]);
+    g.L(18, 31, 61, 3, WOOD); g.P([[52, 9], [41, 5], [45, 15]], f.color);
+    g.P([[26, 32], [32, 32], [34, 47], [28, 47]], '#55504a');
+    g.P([[23, 16], [35, 16], [34, 34], [24, 34]], MAIL); g.P([[26, 16], [32, 16], [31.5, 34], [26.5, 34]], f.color);
+    g.C(29, 10, 5.6, SKIN); g.eyes(30, 9); g.cap(29, 9, 6.4, STEEL); g.arm(33, 20, 38, 22, MAIL, 4);
+  },
+  wolf(g, f) {
+    g.P([[11, 34], [1, 27], [6, 41]], '#7c828a');
+    for (const lx of [13, 20, 37, 43]) g.P([[lx, 42], [lx + 5, 42], [lx + 5.5, 59], [lx + 0.5, 59]], '#6a7078');
+    g.E(28, 38, 17.5, 9.5, '#9aa0a8'); g.E(28, 43, 12, 4, '#c5cad0', false);
+    g.P([[39, 30], [46, 21], [53, 25], [63, 33], [59, 39], [46, 41]], '#9aa0a8'); g.P([[44, 24], [45, 13], [51, 23]], '#7c828a');
+    g.P([[52, 37.5], [54, 41], [56, 38]], BONE, true); g.dot(61.5, 33.5, 1.9, INK); g.dot(52.5, 29.5, 1.8, '#f3cf5b'); g.dot(52.8, 29.5, 0.8, INK);
+    g.P([[39.5, 30], [44, 28.5], [46.5, 40.5], [42, 41]], f.color);
+  },
+  gryphon(g, f) {
+    g.P([[27, 36], [4, 5], [13, 10], [15, 2], [22, 10], [26, 1], [31, 13], [38, 30]], '#e9e4d6');
+    g.L(27, 34, 13, 11, '#a9a392', 1.2); g.L(30, 32, 22, 11, '#a9a392', 1.2); g.L(33, 30, 30, 14, '#a9a392', 1.2);
+    g.L(14, 42, 6, 50, '#c99a52', 3); g.C(5, 51, 3.2, '#8a5a2b');
+    g.P([[17, 45], [23, 45], [23.5, 59], [16.5, 59]], '#b58842'); g.P([[35, 45], [41, 45], [42, 59], [34, 59]], GOLD);
+    g.E(28, 42, 15.5, 8.5, '#c99a52');
+    g.P([[35, 46], [37, 27], [47, 21], [53, 34], [47, 47]], BONE); g.C(49, 20, 7.2, BONE);
+    g.P([[54, 16.5], [63.5, 22.5], [54, 26]], GOLD); g.dot(51, 18.5, 1.6, INK); g.P([[44, 15], [41, 8], [47, 13]], BONE);
+    g.P([[36.5, 38], [51.5, 35.5], [50.5, 41], [36.5, 43.5]], f.color);
+  },
+  troll(g, f) {
+    g.L(53, 16, 51, 40, '#6b4a2a', 5); g.C(53.5, 10, 6.5, '#7a5632'); g.dot(51, 8, 1.3, '#4d3520'); g.dot(56, 12, 1.3, '#4d3520');
+    g.P([[19, 44], [30, 44], [30, 59], [17, 59]], '#4f8f42'); g.P([[34, 44], [45, 44], [47, 59], [34, 59]], '#4f8f42');
+    g.E(32, 34, 16.5, 14, '#5aa845'); g.E(31, 38, 9, 8, '#7cc063', false);
+    g.P([[19, 43], [45, 43], [41, 53], [32, 49], [23, 53]], f.color);
+    g.arm(17, 29, 10, 47, '#5aa845', 7); g.arm(47, 29, 52, 40, '#5aa845', 7);
+    g.P([[24, 14], [18, 10], [23, 19]], '#5aa845'); g.P([[40, 14], [46, 10], [41, 19]], '#5aa845');
+    g.C(32, 16, 8.5, '#5aa845'); g.L(27, 13, 37, 13, '#3d7a34', 1.6); g.dot(28.8, 15.5, 1.5, '#e0412e'); g.dot(35.2, 15.5, 1.5, '#e0412e');
+    g.P([[27, 22], [26, 15.5], [29.5, 21]], BONE); g.P([[37, 22], [38, 15.5], [34.5, 21]], BONE);
+  },
+  drake(g, f) {
+    g.P([[26, 32], [9, 3], [21, 12], [30, 1], [34, 14], [45, 6], [41, 32]], '#8f2418');
+    g.L(27, 30, 21, 12, '#5e150d', 1.3); g.L(31, 30, 34, 14, '#5e150d', 1.3);
+    g.P([[16, 45], [1, 51], [4, 42], [14, 36]], '#c0392b');
+    g.P([[17, 46], [25, 46], [26, 59], [16, 59]], '#a52f22'); g.P([[33, 46], [41, 46], [42, 59], [32, 59]], '#a52f22');
+    g.E(28, 42, 16.5, 10, '#c0392b'); g.E(28, 47.5, 11, 3.6, '#e8a23a', false);
+    g.P([[36, 39], [42, 18], [52, 16], [49, 41]], '#c0392b'); g.P([[39.5, 26], [36, 22], [41, 21]], BONE); g.P([[38, 33], [34, 30], [39, 28]], BONE);
+    g.P([[43, 10], [56, 9], [63.5, 18], [58, 23.5], [45, 22]], '#c0392b'); g.P([[45, 11], [39, 2], [50, 9]], BONE);
+    g.dot(53, 14.5, 1.8, '#f3cf5b'); g.dot(53.3, 14.5, 0.8, INK); g.dot(60.5, 18, 0.9, INK);
+    g.P([[37.5, 33], [49.5, 30.5], [49.5, 36], [37, 38.5]], f.color);
+  },
+  ram(g, f) {
+    g.P([[38, 33], [63, 33], [63, 43], [38, 43]], '#6b4a2a'); g.P([[57, 31], [64, 34.5], [64, 41.5], [57, 45]], MAIL);
+    g.P([[6, 30], [56, 30], [56, 47], [6, 47]], WOOD); g.L(6, 38.5, 56, 38.5, '#5e3d1c', 1.2);
+    g.P([[2, 30], [13, 13], [47, 13], [60, 30]], f.color); g.shade([[31, 14], [47, 14], [59, 29.5], [31, 29.5]]);
+    g.L(22, 13, 18, 30, f.dark, 1.3); g.L(38, 13, 41, 30, f.dark, 1.3);
+    for (const wx of [17, 45]) { g.C(wx, 51, 7.5, '#5a4028'); g.C(wx, 51, 2.4, MAIL); }
+  },
+};
+
 function unitSprite(type, owner) {
   const key = type + ':' + owner; if (spriteCache[key]) return spriteCache[key];
-  const f = fac(owner), c = mk(12, 12), x = c.getContext('2d'), rows = ART[type];
-  for (let r = 0; r < 12; r++) for (let q = 0; q < 12; q++) {
-    const ch = (rows[r] || '')[q] || '.'; if (ch === '.') continue;
-    x.fillStyle = ch === 'F' ? f.color : ch === 'f' ? f.dark : PAL[ch] || '#f0f'; x.fillRect(q, r, 1, 1);
-  }
+  const c = mk(128, 128), x = c.getContext('2d');
+  x.scale(2, 2); x.lineJoin = 'round'; x.lineCap = 'round'; x.strokeStyle = INK; x.lineWidth = 1.8;
+  DRAW[type](pen(x), fac(owner));
   return (spriteCache[key] = c);
 }
 
@@ -47,7 +172,7 @@ function tokenSprite(type, owner) {
   x.save(); x.translate(23, 23); x.scale(0.78, 0.78); x.translate(-23, -23);
   const g2 = x.createLinearGradient(0, 0, 0, 46); g2.addColorStop(0, 'rgba(20,18,16,.62)'); g2.addColorStop(1, 'rgba(20,18,16,.38)'); plate(4, g2);
   x.restore();
-  x.imageSmoothingEnabled = false; x.drawImage(unitSprite(type, owner), 8, 5, 30, 30);
+  x.imageSmoothingQuality = 'high'; x.drawImage(unitSprite(type, owner), 3, -1, 40, 40);
   return (spriteCache[key] = c);
 }
 
