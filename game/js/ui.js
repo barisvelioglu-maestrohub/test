@@ -43,6 +43,12 @@
     ctx.drawImage(terrain, 0, 0, MAP_W * TS, MAP_H * TS);
     for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS);
     for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS, c.y * TS - 10);
+    for (const o of G.drops) { // relics left by a fallen hero
+      if (!onScreen(o.x, o.y)) continue; const a = o.x * TS + 14, b = o.y * TS + 24;
+      ctx.fillStyle = 'rgba(8,10,12,.4)'; ctx.beginPath(); ctx.ellipse(a + 10, b + 15, 13, 4, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#1d1712'; ctx.lineWidth = 1.5; ctx.fillStyle = '#8a5a2b'; ctx.fillRect(a, b + 5, 20, 10); ctx.strokeRect(a, b + 5, 20, 10);
+      ctx.fillStyle = '#a8703a'; ctx.fillRect(a, b, 20, 6); ctx.strokeRect(a, b, 20, 6); ctx.fillStyle = '#f3cf5b'; ctx.fillRect(a + 8, b + 3, 4, 6); ctx.strokeRect(a + 8, b + 3, 4, 6);
+    }
     for (const s of G.stacks) {
       if (!onScreen(s.x, s.y)) continue;
       const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
@@ -54,6 +60,11 @@
         ctx.fillStyle = hl; ctx.fillRect(px - 4, py - 6, 56, 56);
       }
       ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
+      if (s.units.some(u => u.hero)) { // a crown marks an army led by a hero
+        ctx.beginPath(); ctx.moveTo(px - 1, py + 9); ctx.lineTo(px - 2, py - 2); ctx.lineTo(px + 3, py + 3); ctx.lineTo(px + 7, py - 4); ctx.lineTo(px + 11, py + 3); ctx.lineTo(px + 16, py - 2); ctx.lineTo(px + 15, py + 9); ctx.closePath();
+        ctx.fillStyle = '#f3cf5b'; ctx.fill(); ctx.strokeStyle = '#1d1712'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = '#c0392b'; ctx.fillRect(px + 6, py + 4, 2.5, 2.5);
+      }
       badge(px, py, s.units.length, s.owner, idle);
     }
     for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS, c.y * TS + 2 * TS + 1, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
@@ -99,7 +110,7 @@
   function unitCard(u, owner, picked, clickable) {
     const ab = U(u).abil.map(a => ABILITIES[a]).join(' · ');
     const extra = u.hero ? `Lv ${u.hero.level} · mana ${u.hero.mana}/${uMaxMana(u)}` : '';
-    return `<button type="button" class="unit${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(ab || 'No special ability')}">
+    return `<button type="button" class="unit${u.hero ? ' hero' : ''}${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(ab || 'No special ability')}">
       <img src="${spriteURL(u.type, owner)}" alt=""><span class="un">${esc(uName(u))}${u.bless ? ' ✦' : ''}</span>
       <span class="us">Str ${uStr(u)} · Hits ${uMaxHp(u)} · Move ${Math.max(0, Math.floor(u.mp))}/${uMaxMp(u)}</span>${extra ? `<span class="us">${extra}</span>` : ''}</button>`;
   }
@@ -108,11 +119,21 @@
     const s = sel && stackById(sel.stackId);
     if (s) {
       h += `<h2>Army <span class="muted">${s.units.length}/${MAX_STACK}</span></h2><div class="units">`;
-      for (const u of s.units) h += unitCard(u, s.owner, sel.ids.has(u.id), true);
+      for (const u of s.units.slice().sort((a, b) => !!b.hero - !!a.hero)) h += unitCard(u, s.owner, sel.ids.has(u.id), true);
       h += '</div><p class="hint">Click a unit to leave it behind. Click the map to march.</p>';
       const hero = s.units.find(u => u.hero && sel.ids.has(u.id));
       if (hero) {
         h += `<h3>${esc(hero.hero.name)}</h3><p class="muted">Level ${hero.hero.level} ${U(hero).name} · ${hero.hero.xp}/${xpFor(hero.hero.level)} xp${heroLead(hero) ? ` · command +${heroLead(hero)}` : ''}</p>`;
+        if (hero.hero.pending > 0) {
+          h += `<p class="advance">New level reached. Choose an advance${hero.hero.pending > 1 ? ` (${hero.hero.pending} to spend)` : ''}:</p><div class="row">`;
+          for (const k of perkOptions(hero)) h += `<button type="button" class="primary" data-perk="${k}" data-hero="${hero.id}">${PERKS[k].name} <small>${PERKS[k].desc}</small></button>`;
+          h += '</div>';
+        }
+        const got = Object.keys(PERKS).filter(k => hero.hero.perks[k]).map(k => `${PERKS[k].name} ×${hero.hero.perks[k]}`);
+        if (got.length) h += `<p class="muted">Advances: ${got.join(', ')}</p>`;
+        const q = hero.hero.quest, home = cityAt(s.x, s.y);
+        if (q) h += `<p class="quest"><b>Quest.</b> ${esc(q.text)}${q.type === 'slay' ? ` (${q.left} to go)` : ''} <span class="muted">Reward: ${QUEST_REWARDS[q.reward]}.</span></p>`;
+        else if (home && home.owner === HUMAN) h += `<div class="row"><button type="button" data-quest="${hero.id}">Seek a quest in ${esc(home.name)}</button></div>`;
         if (hero.hero.items.length) h += '<p class="muted">' + hero.hero.items.map(k => { const it = ITEMS.find(i => i.key === k); return `${esc(it.name)} (${esc(it.desc)})`; }).join('<br>') + '</p>';
         h += '<div class="row">';
         for (const sp of SPELLS) h += `<button type="button" data-spell="${sp.key}" data-hero="${hero.id}" title="${esc(sp.desc)}" ${hero.hero.mana < sp.cost ? 'disabled' : ''}>${sp.name} <small>${sp.cost}</small></button>`;
@@ -168,6 +189,7 @@
     const parts = [], c = cityAt(x, y), r = ruinAt(x, y), s = stackAt(x, y);
     parts.push(c ? `${c.name} (${fac(c.owner).short} ${TIER_NAMES[c.level].toLowerCase()}, walls +${wallBonus(c)}, garrison ${cityUnits(c).length})` : TERRAIN_NAMES[MAP.t[y][x]] + (MAP.road[y][x] ? ' · road' : ''));
     if (r) parts.push(r.name + (r.explored ? ' (searched)' : ' (unsearched ruin)'));
+    if (G.drops.some(o => o.x === x && o.y === y)) parts.push('relics of a fallen hero lie here');
     if (s) parts.push(`${fac(s.owner).short}: ` + s.units.map(u => `${uName(u)} ${uStr(u)}`).join(', '));
     return parts.join(' — ');
   }
@@ -200,7 +222,7 @@
     const left = end && end.owner === HUMAN ? end.units.filter(u => ids.includes(u.id)) : [];
     sel = left.length ? { stackId: end.id, ids: new Set(left.map(u => u.id)) } : null; selCity = null;
     if (G.over) { UI.gameOver(); return; }
-    refresh(); updatePreview();
+    refresh(); updatePreview(); showNotices();
   }
   function clickTile(x, y, right) {
     if (!G || busy || G.cur !== HUMAN || !inb(x, y)) return;
@@ -220,12 +242,19 @@
   function closeModal() { $('modal').hidden = true; $('mbox').innerHTML = ''; }
   const waitClick = sel => new Promise(res => { $('mbox').addEventListener('click', function h(e) { const b = e.target.closest(sel); if (!b) return; $('mbox').removeEventListener('click', h); res(b); }); });
 
+  function showNotices() {
+    if (!G.notices.length || !$('modal').hidden) return;
+    const list = G.notices.splice(0);
+    modal(`<h2>News of your heroes</h2>${list.map(t => `<p>${esc(t)}</p>`).join('')}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`);
+    waitClick('button[data-a]').then(closeModal);
+  }
   UI.tick = async (delay, stack) => { if (stack && onScreen(stack.x, stack.y)) await sleep(delay); };
   UI.refresh = refresh;
   UI.onHumanTurn = () => {
     busy = false; sel = null; selCity = null;
     const first = G.stacks.find(s => s.owner === HUMAN && s.units.some(u => u.mp >= 2));
     if (first) { selectStack(first); centerOn(first.x, first.y); } else refresh();
+    showNotices();
   };
   UI.askHero = async (cls, cost, home) => {
     modal(`<h2>A hero seeks your banner</h2><div class="offer"><img src="${spriteURL(cls, HUMAN)}" alt=""><p>A wandering ${UNITS[cls].name.toLowerCase()} waits at the gates of ${esc(home.name)} and will swear to you for <b>${cost} gold</b>.<br><span class="muted">${cls === 'seer' ? 'Seers fight poorly but hold twice the mana.' : 'Champions are strong fighters with little mana.'}</span></p></div>
@@ -253,7 +282,7 @@
     done = true; btn.textContent = 'Continue'; await finished; closeModal();
   };
   UI.gameOver = () => {
-    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v2'); } catch (e) { /* ignore */ }
+    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v3'); } catch (e) { /* ignore */ }
     const won = G.winner === HUMAN;
     modal(`<h2>${won ? 'The Vale is yours' : 'Your banner has fallen'}</h2><p>${won ? `After ${G.turn} turns every rival crown lies in the ash. ${esc(FACTIONS[HUMAN].name)} rules ${MAP_NAME}.` : `${esc(FACTIONS[HUMAN].name)} holds no city in ${MAP_NAME}. The war goes on without you.`}</p><div class="row"><button type="button" class="primary" data-a="new">New war</button></div>`);
     waitClick('button[data-a]').then(() => title());
@@ -280,7 +309,7 @@
       <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross water and mountains; bridges carry everyone.</li>
       <li><b>Battle.</b> Units duel one at a time, weakest first. The chance to land a hit is your strength against theirs. City walls, banners, heroes and terrain all add strength. Hover an enemy to see the odds.</li>
       <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
-      <li><b>Heroes.</b> Heroes gain experience, cast spells with mana and can search ruins (golden spark) for gold, relics or allies. It can kill them.</li>
+      <li><b>Heroes.</b> An army led by a hero wears a crown. Heroes gain experience and choose an advance at each new level, cast spells with mana, and can search ruins (golden glow) for gold, relics or allies, which can kill them. In one of your cities a hero can seek a quest for a reward. A fallen hero's relics stay on the tile until another hero collects them.</li>
       <li><b>Keys.</b> N next army · E end turn · Esc deselect · arrows scroll.</li></ul>
       <div class="row"><button type="button" class="primary" data-a="ok">Back to the war</button></div>`);
     waitClick('button[data-a]').then(closeModal);
@@ -314,11 +343,16 @@
   $('panel').addEventListener('click', e => {
     if (busy || !G) return;
     const b = e.target.closest('button'); if (!b) return; const d = b.dataset, s = sel && stackById(sel.stackId);
-    if (d.unit && s) { const id = +d.unit; if (sel.ids.has(id)) sel.ids.delete(id); else sel.ids.add(id); sel.dm = null; }
+    if (d.perk && s) { const h = s.units.find(u => u.id === +d.hero); if (h) applyPerk(h, d.perk); sel.dm = null; }
+    else if (d.quest && s) {
+      const h = s.units.find(u => u.id === +d.quest), q = h && offerQuest(s, h);
+      if (q) { modal(`<h2>A quest for ${esc(h.hero.name)}</h2><p>${esc(q.text)}</p><p class="muted">Reward: ${QUEST_REWARDS[q.reward]}. A hero carries one quest at a time.</p><div class="row"><button type="button" class="primary" data-a="ok">Accept</button></div>`); waitClick('button[data-a]').then(closeModal); }
+    }
+    else if (d.unit && s) { const id = +d.unit; if (sel.ids.has(id)) sel.ids.delete(id); else sel.ids.add(id); sel.dm = null; }
     else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h && !castSpell(s, h, d.spell)) setHoverText('That spell cannot be cast now.'); if (d.spell === 'pack') selectStack(s); sel.dm = null; }
     else if (d.search && s) {
       const h = s.units.find(u => u.id === +d.search), r = h && searchRuin(s, h);
-      if (r) { modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p><div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
+      if (r) { const more = G.notices.splice(0).filter(t => t !== r.text).map(t => `<p>${esc(t)}</p>`).join(''); modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p>${more}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
       const again = stackById(s.id); if (again) selectStack(again); else sel = null;
     }
     else if ('prod' in d) { const c = G.cities[+d.city]; if (!setProduction(c, d.prod || null)) setHoverText(`Not enough gold for ${UNITS[d.prod].name}.`); }

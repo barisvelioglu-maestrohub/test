@@ -12,7 +12,7 @@ Open `index.html` in a browser. No server or install needed.
 - One fixed map (44 x 32 tiles) with 4 capitals, free cities, ruins, roads and bridges
 - Cities span four tiles, have three tiers (palisade town, walled city, citadel) and show their garrison
 - Armies of up to 8 units, 12 unit types with abilities (flying, siege, banner, volley, ...)
-- Heroes with experience, levels, relics, mana and three spells
+- Heroes with experience, a choice of advance at each level, quests, relics that drop on death, mana and three spells
 - City mustering, fortifying, income and upkeep
 - Duel-based battles with walls, terrain and command bonuses, and an odds preview
 - Three computer opponents; autosave at the start of each of your turns

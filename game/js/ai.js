@@ -55,6 +55,10 @@ async function aiStack(p, s) {
     if (r.explored) continue; const d = dm.dist[idx(r.x, r.y)]; if (d === Infinity || d === 0) continue;
     cands.push({ x: r.x, y: r.y, d, v: 130, ruin: r });
   }
+  if (hero) for (const o of G.drops) {
+    const d = dm.dist[idx(o.x, o.y)]; if (d === Infinity || d === 0) continue;
+    cands.push({ x: o.x, y: o.y, d, v: 120, ruin: o });
+  }
   cands.forEach(c => { c.score = c.v / (c.d + 8); });
   cands.sort((a, b) => b.score - a.score);
   let target = null;

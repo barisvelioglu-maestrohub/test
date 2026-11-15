@@ -20,11 +20,14 @@ function logMsg(text, owner = -2) {
 const U = u => UNITS[u.type];
 const has = (u, ab) => UNITS[u.type].abil.includes(ab);
 const itemSum = (u, k) => (u.hero ? u.hero.items.reduce((s, key) => s + (ITEMS.find(i => i.key === key)[k] || 0), 0) : 0);
-const uStr = u => U(u).str + (u.hero ? u.hero.level - 1 + itemSum(u, 'str') : 0);
-const uMaxHp = u => U(u).hp + (u.hero ? Math.floor((u.hero.level - 1) / 2) + itemSum(u, 'hp') : 0);
-const uMaxMp = u => U(u).mv + itemSum(u, 'mv');
-const uMaxMana = u => U(u).mana + u.hero.level * 2 + itemSum(u, 'mana');
-const heroLead = u => (u.hero.level >= 3 ? 1 : 0) + (u.hero.level >= 6 ? 1 : 0) + itemSum(u, 'lead');
+const perk = (u, k) => (u.hero ? u.hero.perks[k] : 0);
+const uStr = u => U(u).str + perk(u, 'str') + itemSum(u, 'str');
+const uMaxHp = u => U(u).hp + perk(u, 'hp') + itemSum(u, 'hp');
+const uMaxMp = u => U(u).mv + 4 * perk(u, 'mv') + itemSum(u, 'mv');
+const uMaxMana = u => U(u).mana + 6 * perk(u, 'mana') + itemSum(u, 'mana');
+const heroLead = u => perk(u, 'lead') + itemSum(u, 'lead');
+const stackOf = u => G.stacks.find(s => s.units.includes(u)) || null;
+function note(owner, text) { if (!AUTO && isHuman(owner)) G.notices.push(text); }
 const uName = u => (u.hero ? u.hero.name : U(u).name);
 const upkeep = u => (u.hero ? 0 : Math.max(1, Math.round(U(u).cost / 40)));
 const xpFor = level => 10 * level * level;
@@ -33,7 +36,7 @@ function makeUnit(type) { const u = { id: G.nextId++, type, mp: 0 }; u.mp = uMax
 function makeHero(owner, cls) {
   const used = new Set(); G.stacks.forEach(s => s.units.forEach(u => u.hero && used.add(u.hero.name)));
   const names = FACTIONS[owner].heroes.filter(n => !used.has(n));
-  const u = { id: G.nextId++, type: cls, mp: 0, hero: { name: names.length ? pick(names) : 'Wanderer ' + (G.nextId), level: 1, xp: 0, mana: 0, items: [] } };
+  const u = { id: G.nextId++, type: cls, mp: 0, hero: { name: names.length ? pick(names) : 'Wanderer ' + (G.nextId), level: 1, xp: 0, mana: 0, items: [], perks: { str: 0, hp: 0, lead: 0, mv: 0, mana: 0 }, pending: 0, quest: null } };
   u.hero.mana = Math.floor(uMaxMana(u) / 2); u.mp = uMaxMp(u); return u;
 }
 
@@ -103,7 +106,7 @@ function relocate(from, units, x, y) {
   if (!from.units.length) removeStack(from);
   let to = stackAt(x, y);
   if (!to) { to = { id: G.nextId++, x, y, owner: from.owner, units: [] }; G.stacks.push(to); }
-  to.units.push(...units); return to;
+  to.units.push(...units); pickUp(to); return to;
 }
 
 /* Moves the given unit ids along a path as far as their movement allows. Returns the stack they end in (or null). */
@@ -175,10 +178,65 @@ function estimateWin(att, def, x, y, city, n = 14) {
 function gainXp(heroes, amount) {
   for (const h of heroes) {
     h.hero.xp += amount;
+    const st = stackOf(h), owner = st ? st.owner : -1;
     while (h.hero.xp >= xpFor(h.hero.level)) {
-      h.hero.level++; logMsg(`${h.hero.name} rises to level ${h.hero.level}.`, -2);
+      h.hero.level++; h.hero.pending++; logMsg(`${h.hero.name} rises to level ${h.hero.level}.`, owner);
+      if (AUTO || !isHuman(owner)) applyPerk(h, perkOptions(h)[rnd(3) ? 0 : 1]);
+      else note(owner, `${h.hero.name} rises to level ${h.hero.level}. Choose an advance in the army panel.`);
     }
   }
+}
+/* The pair of advances on offer for the oldest level the hero has not yet spent. */
+function perkOptions(h) {
+  const lvl = h.hero.level - h.hero.pending + 1, opts = PERK_CHOICES[h.type][(lvl - 2 + 400) % 4].slice();
+  return opts.map(k => (k === 'lead' && h.hero.perks.lead >= 3 ? (opts.includes('str') ? 'hp' : 'str') : k));
+}
+function applyPerk(h, key) {
+  if (h.hero.pending <= 0 || !perkOptions(h).includes(key)) return false;
+  h.hero.perks[key]++; h.hero.pending--;
+  if (key === 'mv') h.mp += 4; if (key === 'mana') h.hero.mana += 6;
+  return true;
+}
+
+/* Relics of a fallen hero lie where they fell until another hero walks onto the tile. */
+function dropItems(hero, x, y) {
+  if (!hero.hero.items.length) return;
+  let d = G.drops.find(o => o.x === x && o.y === y); if (!d) { d = { x, y, items: [] }; G.drops.push(d); }
+  d.items.push(...hero.hero.items); hero.hero.items = [];
+}
+function pickUp(stack) {
+  const d = G.drops.find(o => o.x === stack.x && o.y === stack.y), h = stack.units.find(u => u.hero); if (!d || !h) return;
+  h.hero.items.push(...d.items); G.drops.splice(G.drops.indexOf(d), 1);
+  const names = d.items.map(k => ITEMS.find(i => i.key === k).name).join(', ');
+  logMsg(`${h.hero.name} takes up the ${names}.`, stack.owner); note(stack.owner, `${h.hero.name} takes up the ${names}.`);
+}
+
+/* Quests: a hero in a friendly city can take one task at a time for a reward. */
+function offerQuest(stack, hero) {
+  const p = stack.owner, far = o => Math.hypot(o.x - stack.x, o.y - stack.y), opts = [];
+  const cs = G.cities.filter(c => c.owner !== p).sort((a, b) => far(a) - far(b)).slice(0, 4);
+  if (cs.length) { const c = pick(cs); opts.push({ type: 'city', id: c.id, text: `Take ${c.name} with ${hero.hero.name} in the attacking army.` }); }
+  const rs = G.ruins.map((r, i) => ({ r, i })).filter(o => !o.r.explored).sort((a, b) => far(a.r) - far(b.r)).slice(0, 3);
+  if (rs.length) { const o = pick(rs); opts.push({ type: 'ruin', id: o.i, text: `Search ${o.r.name}.` }); }
+  opts.push({ type: 'slay', left: 5, text: 'Win battles that destroy 5 enemy units.' });
+  const q = pick(opts); q.reward = pick(['gold', 'allies', 'relic']);
+  if (q.reward === 'relic' && !ITEMS.some(i => !G.itemsFound.includes(i.key))) q.reward = 'gold';
+  hero.hero.quest = q; logMsg(`${hero.hero.name} takes a quest: ${q.text}`, p); return q;
+}
+const QUEST_REWARDS = { gold: 'a purse of gold', allies: 'allies for the army', relic: 'a relic' };
+function questDone(hero) {
+  const q = hero.hero.quest, st = stackOf(hero); if (!q || !st) return;
+  hero.hero.quest = null; let text = `${hero.hero.name} completes the quest`;
+  const free = ITEMS.filter(i => !G.itemsFound.includes(i.key));
+  if (q.reward === 'relic' && free.length) { const it = pick(free); G.itemsFound.push(it.key); hero.hero.items.push(it.key); text += ` and is given the ${it.name} (${it.desc}).`; }
+  else if (q.reward === 'allies' && st.units.length < MAX_STACK) {
+    const type = pick(['gryphon', 'troll', 'reaver', 'rider']), n = Math.min(2, MAX_STACK - st.units.length);
+    for (let i = 0; i < n; i++) st.units.push(makeUnit(type)); text += ` and ${n === 1 ? 'a' : 'two'} ${UNITS[type].name} join${n === 1 ? 's' : ''} the army.`;
+  } else { const gold = 160 + rnd(120); G.players[st.owner].gold += gold; text += ` and is paid ${gold} gold.`; }
+  logMsg(text, st.owner); note(st.owner, text); gainXp([hero], 15);
+}
+function questKills(heroes, n) {
+  for (const h of heroes) { const q = h.hero.quest; if (!q || q.type !== 'slay' || !n) continue; q.left -= n; if (q.left <= 0) questDone(h); }
 }
 
 async function attack(from, units, x, y) {
@@ -195,10 +253,12 @@ async function attack(from, units, x, y) {
     for (const s of defStacks) { s.units = s.units.filter(u => !res.dDead.has(u.id)); if (!s.units.length) removeStack(s); }
     gainXp(units.filter(u => u.hero && !res.aDead.has(u.id)), killedD.reduce((s, u) => s + U(u).str, 0));
     gainXp(defUnits.filter(u => u.hero && !res.dDead.has(u.id)), killedA.reduce((s, u) => s + U(u).str, 0));
-    [...killedA, ...killedD].forEach(u => { if (u.hero) logMsg(`${u.hero.name} has fallen in battle.`, -2); });
+    [...killedA, ...killedD].forEach(u => { if (u.hero) { logMsg(`${u.hero.name} has fallen in battle.`, -2); dropItems(u, x, y); } });
     if (!res.win) {
       logMsg(`${fac(owner).short} is beaten back at ${where} by ${fac(def.owner).short}.`, def.owner);
       if (!from.units.length) removeStack(from);
+      const held = stackAt(x, y); if (held) pickUp(held);
+      questKills(defUnits.filter(u => u.hero && !res.dDead.has(u.id)), killedA.length);
       return G.stacks.includes(from) ? from : null;
     }
     logMsg(`${fac(owner).short} defeats ${fac(def.owner).short} at ${where}.`, owner);
@@ -206,6 +266,7 @@ async function attack(from, units, x, y) {
   const survivors = units.filter(u => !res || !res.aDead.has(u.id));
   const to = relocate(from, survivors, x, y);
   if (city && city.owner !== owner) captureCity(city, owner, survivors);
+  if (res) questKills(survivors.filter(u => u.hero), res.dDead.size);
   return to;
 }
 
@@ -215,6 +276,7 @@ function captureCity(city, owner, units) {
   G.players[owner].gold += loot;
   logMsg(`${fac(owner).short} takes ${city.name} and seizes ${loot} gold.`, owner);
   gainXp(units.filter(u => u.hero), 6 + 2 * city.level);
+  for (const h of units) if (h.hero && h.hero.quest && h.hero.quest.type === 'city' && h.hero.quest.id === city.id) questDone(h);
   if (old >= 0 && !G.cities.some(c => c.owner === old)) eliminate(old);
 }
 function eliminate(p) {
@@ -267,6 +329,7 @@ function searchRuin(stack, hero) {
   let hh = uMaxHp(hero), gh = 3;
   while (hh > 0 && gh > 0) { if (Math.random() < s / (s + g)) gh--; else hh--; }
   if (hh <= 0) {
+    dropItems(hero, stack.x, stack.y);
     stack.units = stack.units.filter(u => u !== hero); if (!stack.units.length) removeStack(stack);
     const text = `${hero.hero.name} enters ${ruin.name} and is slain by ${who}.`;
     logMsg(text, stack.owner); return { ok: false, text };
@@ -284,13 +347,15 @@ function searchRuin(stack, hero) {
   } else {
     const gold = 90 + rnd(140); G.players[stack.owner].gold += gold; text += ` and carries off ${gold} gold.`;
   }
-  logMsg(text, stack.owner); return { ok: true, text };
+  logMsg(text, stack.owner);
+  if (hero.hero.quest && hero.hero.quest.type === 'ruin' && G.ruins[hero.hero.quest.id] === ruin) questDone(hero);
+  return { ok: true, text };
 }
 
 /* ---------- turns ---------- */
 function newGame(human) {
   MAP = genMap();
-  G = { turn: 0, cur: -1, nextId: 1, over: false, winner: null, log: [], itemsFound: [], stacks: [], cities: [], ruins: [],
+  G = { turn: 0, cur: -1, nextId: 1, over: false, winner: null, log: [], itemsFound: [], drops: [], notices: [], stacks: [], cities: [], ruins: [],
     players: FACTIONS.map((f, i) => ({ id: i, human: i === human, gold: 150, alive: true, heroOffer: 5 + rnd(4) })) };
   let ni = 0; const pool = ['levy', 'pike', 'archer', 'wolf', 'rider', 'ram', 'bearer', 'reaver', 'troll', 'gryphon', 'warden'];
   MAP.cities.forEach((c, i) => {
@@ -324,7 +389,12 @@ async function beginTurn(p) {
   }
   for (const s of G.stacks) if (s.owner === p) for (const u of s.units) {
     u.mp = uMaxMp(u); u.bless = false;
-    if (u.hero) u.hero.mana = Math.min(uMaxMana(u), u.hero.mana + 2);
+    if (!u.hero) continue;
+    u.hero.mana = Math.min(uMaxMana(u), u.hero.mana + 2);
+    const q = u.hero.quest;
+    if (q && ((q.type === 'city' && G.cities[q.id].owner === p) || (q.type === 'ruin' && G.ruins[q.id].explored))) {
+      u.hero.quest = null; logMsg(`${u.hero.name}'s quest can no longer be completed.`, p); note(p, `${u.hero.name}'s quest can no longer be completed. A new one can be sought in any of your cities.`);
+    }
   }
   for (const c of G.cities) {
     if (c.owner !== p || !c.cur) continue;
@@ -365,12 +435,12 @@ async function runTurns() {
   UI.gameOver();
 }
 
-function saveGame() { try { localStorage.setItem('ashen-crowns-save-v2', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
+function saveGame() { try { localStorage.setItem('ashen-crowns-save-v3', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
 function loadGame() {
   try {
-    const raw = localStorage.getItem('ashen-crowns-save-v2'); if (!raw) return false;
+    const raw = localStorage.getItem('ashen-crowns-save-v3'); if (!raw) return false;
     const g = JSON.parse(raw); if (!g || !g.cities || g.over) return false;
     MAP = genMap(); G = g; return true;
   } catch (e) { return false; }
 }
-function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save-v2'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }
+function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save-v3'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }

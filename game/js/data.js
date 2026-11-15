@@ -60,6 +60,19 @@ const ITEMS = [
   { key: 'crown',  name: 'Circlet of Ash',       desc: '+1 command, +1 strength', lead: 1, str: 1 },
 ];
 
+/* Advances a hero picks from on gaining a level. Each class is offered a different pair per level. */
+const PERKS = {
+  str:  { name: 'Might',       desc: '+1 strength' },
+  hp:   { name: 'Vigour',      desc: '+1 hit' },
+  lead: { name: 'Command',     desc: '+1 strength for the whole army' },
+  mv:   { name: 'Pathfinding', desc: '+4 movement' },
+  mana: { name: 'Lore',        desc: '+6 mana' },
+};
+const PERK_CHOICES = {
+  champion: [['str', 'hp'], ['lead', 'str'], ['hp', 'mv'], ['str', 'lead']],
+  seer:     [['mana', 'str'], ['lead', 'mana'], ['str', 'mv'], ['lead', 'hp']],
+};
+
 const SPELLS = [
   { key: 'march', name: 'Quickmarch', cost: 4, desc: '+6 movement for the whole army this turn' },
   { key: 'ward',  name: 'Warding',    cost: 5, desc: '+1 strength for the whole army until your next turn' },
