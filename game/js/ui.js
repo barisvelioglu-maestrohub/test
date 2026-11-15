@@ -260,16 +260,18 @@
     centerOn(x, y);
     const side = (units, owner) => units.map(u => `<div class="bu" id="bu${u.id}"><img src="${spriteURL(u.type, owner)}" alt=""><span class="un">${esc(uName(u))}</span><span class="us">Str ${res.str[u.id]}</span><span class="pips" data-max="${uMaxHp(u)}">${'<i></i>'.repeat(uMaxHp(u))}</span></div>`).join('');
     modal(`<h2>Battle ${city ? 'for ' + esc(city.name) : 'in the ' + TERRAIN_NAMES[MAP.t[y][x]].toLowerCase()}</h2>
-      <div class="battle"><div><h3 style="color:${fac(attOwner).color}">${esc(fac(attOwner).name)} <span class="muted">attacks</span></h3><div class="bside">${side(res.A, attOwner)}</div></div>
-      <div><h3 style="color:${fac(defOwner).color}">${esc(fac(defOwner).name)} <span class="muted">defends</span></h3><div class="bside">${side(res.D, defOwner)}</div></div></div>
+      <div class="battle"><div><h3 style="color:${fac(attOwner).color}">${esc(fac(attOwner).name)} <span class="muted">attacks</span></h3><p class="bonus">${res.bonus.a.length ? esc(res.bonus.a.join(' · ')) : 'no army bonuses'}</p><div class="bside">${side(res.A, attOwner)}</div></div>
+      <div><h3 style="color:${fac(defOwner).color}">${esc(fac(defOwner).name)} <span class="muted">defends</span></h3><p class="bonus">${res.bonus.d.length ? esc(res.bonus.d.join(' · ')) : 'no army bonuses'}</p><div class="bside">${side(res.D, defOwner)}</div></div></div>
+      <div class="dice"><span id="dieA" class="die">–</span><span class="muted">Both roll a 20-sided die. Rolling your strength or less strikes true.</span><span id="dieD" class="die">–</span></div>
       <p id="bres" class="bres">&nbsp;</p><div class="row"><button type="button" class="primary" data-a="go">Skip</button></div>`);
     let skip = false, done = false; const btn = $('mbox').querySelector('button[data-a]');
     const finished = new Promise(resolve => btn.addEventListener('click', () => { if (done) resolve(); else skip = true; }));
     for (const e of res.events) {
       if (e.k === 'duel') { $('mbox').querySelectorAll('.bu.act').forEach(n => n.classList.remove('act')); for (const id of [e.a, e.d]) { const n = $('bu' + id); if (n) n.classList.add('act'); } }
+      else if (e.k === 'roll') { const da = $('dieA'), dd = $('dieD'); da.textContent = e.ra; dd.textContent = e.rd; da.className = 'die ' + (e.aOk ? 'ok' : 'miss'); dd.className = 'die ' + (e.aOk ? 'miss' : 'ok'); }
       else if (e.k === 'hit') { const n = $('bu' + e.id); if (n) { const pips = n.querySelectorAll('.pips i'); pips.forEach((p, i) => p.classList.toggle('lost', i >= e.hp)); n.classList.add('hit'); setTimeout(() => n.classList.remove('hit'), 120); } }
       else if (e.k === 'die') { const n = $('bu' + e.id); if (n) n.classList.add('dead'); }
-      if (!skip) await sleep(e.k === 'duel' ? 260 : 190);
+      if (!skip) await sleep(e.k === 'duel' ? 260 : e.k === 'roll' ? 300 : 170);
     }
     const humanWon = (attOwner === HUMAN) === res.win;
     $('bres').textContent = res.win ? `${fac(attOwner).short} carries the field.` : `${fac(defOwner).short} holds firm.`;
@@ -302,7 +304,7 @@
       <li><b>Goal.</b> Capture every rival city. A crown with no cities is destroyed.</li>
       <li><b>Armies.</b> Click an army to select it, then click (or right-click) a destination. Up to ${MAX_STACK} units share a tile. Click a unit in the panel to leave it behind. Right-click a friendly army to merge.</li>
       <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross mountains. To cross water, use a bridge, fly, or muster a war galley in a coastal city: an army in the same stack as a galley sails with it, and an army on the shore can board a galley waiting next to it.</li>
-      <li><b>Battle.</b> Units duel one at a time, weakest first. The chance to land a hit is your strength against theirs. City walls, banners, heroes and terrain all add strength. Hover an enemy to see the odds.</li>
+      <li><b>Battle.</b> Units duel one at a time, weakest first, heroes last. Each exchange both roll a 20-sided die: a unit strikes true if it rolls its strength or less. If only one strikes true, the other loses a hit; otherwise they roll again. A unit dies when its hits run out, and survivors recover after the battle. Strength is the unit's own plus army bonuses: a hero's command, morale from a banner, city walls, terrain skills, spells, minus enemy fear. Strength is capped at 18. Hover an enemy to see the odds.</li>
       <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
       <li><b>Heroes.</b> An army led by a hero wears a crown. Heroes gain experience and choose an advance at each new level, cast spells with mana, and can search ruins (golden glow) for gold, relics or allies, which can kill them. In one of your cities a hero can seek a quest for a reward. A fallen hero's relics stay on the tile until another hero collects them.</li>
       <li><b>Keys.</b> N next army · E end turn · Esc deselect · arrows scroll.</li></ul>

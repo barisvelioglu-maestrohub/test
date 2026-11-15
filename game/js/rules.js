@@ -163,7 +163,20 @@ function battleStr(u, own, enemy, x, y, isDef, city) {
   if (isDef && own.some(v => has(v, 'rally'))) s += 1;
   if (u.bless) s += 1;
   if (enemy.some(v => has(v, 'terror'))) s -= 1;
-  return Math.max(1, s);
+  return Math.max(1, Math.min(18, s));
+}
+/* The army-wide bonuses in play for one side, as labels for the battle window. */
+function armyBonuses(own, enemy, isDef, city) {
+  const out = [];
+  let lead = 0; for (const v of own) if (v.hero) lead = Math.max(lead, heroLead(v));
+  if (lead) out.push(`command +${lead}`);
+  if (own.some(v => has(v, 'banner'))) out.push('morale +1');
+  if (enemy.some(v => has(v, 'terror'))) out.push('fear -1');
+  if (isDef && city) { let w = wallBonus(city); const sg = enemy.some(v => has(v, 'siege')); if (sg) w = Math.max(0, w - 2); out.push(`walls +${w}${sg ? ' (under siege)' : ''}`); }
+  if (isDef && own.some(v => has(v, 'rally'))) out.push('rally +1');
+  if (own.some(v => v.bless)) out.push('warding +1');
+  if (own.some(v => v.tough)) out.push('vigil +1 hit');
+  return out;
 }
 
 function simulateBattle(att, def, x, y, city) {
@@ -180,12 +193,18 @@ function simulateBattle(att, def, x, y, city) {
     let over = false;
     if (has(a, 'volley') && Math.random() < 0.3 && hit(d, dDead)) { di++; over = true; }
     if (!over && has(d, 'volley') && Math.random() < 0.3 && hit(a, aDead)) { ai++; over = true; }
+    // Each exchange both units roll a twenty-sided die. A unit strikes true when it rolls its strength or less.
+    // If exactly one strikes true the other loses a hit; if both or neither do, they clash and roll again.
+    const sa = str[a.id], sd = str[d.id], pa = sa * (20 - sd), pd = sd * (20 - sa);
     while (!over) {
-      if (Math.random() < str[a.id] / (str[a.id] + str[d.id])) { if (hit(d, dDead)) { di++; over = true; } }
-      else if (hit(a, aDead)) { ai++; over = true; }
+      // Clashes (both or neither strike true) are rerolled, so draw the deciding exchange directly: same odds, no wasted loops.
+      const aOk = Math.random() * (pa + pd) < pa;
+      const ra = aOk ? 1 + rnd(sa) : sa + 1 + rnd(20 - sa), rd = aOk ? sd + 1 + rnd(20 - sd) : 1 + rnd(sd);
+      events.push({ k: 'roll', ra, rd, aOk });
+      if (aOk) { if (hit(d, dDead)) { di++; over = true; } } else if (hit(a, aDead)) { ai++; over = true; }
     }
   }
-  return { win: di >= D.length, events, aDead, dDead, str, A, D };
+  return { win: di >= D.length, events, aDead, dDead, str, A, D, bonus: { a: armyBonuses(att, def, false, city), d: armyBonuses(def, att, true, city) } };
 }
 function estimateWin(att, def, x, y, city, n = 14) {
   let w = 0; for (let i = 0; i < n; i++) if (simulateBattle(att, def, x, y, city).win) w++;

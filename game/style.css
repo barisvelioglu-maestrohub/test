@@ -79,6 +79,11 @@ button.primary small { color: inherit; }
 .pips { display: flex; gap: 2px; }
 .pips i { width: 7px; height: 7px; background: var(--good); }
 .pips i.lost { background: #4a2a28; }
+.bonus { font-size: 12px; color: var(--dust); min-height: 1.4em; }
+.dice { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; text-align: center; }
+.die { flex: none; width: 44px; height: 44px; display: grid; place-items: center; font: 700 20px/1 Georgia, serif; font-variant-numeric: tabular-nums; background: #e9e4d2; color: #15110d; border: 2px solid #15110d; border-radius: 6px; box-shadow: inset -3px -3px 0 rgba(0,0,0,.18); }
+.die.ok { background: var(--good); }
+.die.miss { background: #b9b3a2; color: #5f5b50; }
 .bres { font-weight: 700; min-height: 1.4em; }
 .bres.good { color: var(--good); } .bres.bad { color: var(--bad); }
 .help { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; max-width: 65ch; }

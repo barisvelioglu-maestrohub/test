@@ -66,9 +66,9 @@ const ABILITIES = {
   forester: 'Forester: moves freely through forest, +1 fighting there',
   hillfolk: 'Hillfolk: moves freely through hills, +1 fighting there',
   siege:    'Siege: cancels up to 2 points of city walls',
-  banner:   'Banner: +1 to every unit in its army',
+  banner:   'Banner: lifts morale, +1 to every unit in its army',
   flying:   'Flying: crosses water, mountains and all terrain',
-  terror:   'Terror: -1 to every enemy unit in battle',
+  terror:   'Terror: breaks enemy morale, -1 to every enemy unit in battle',
   rally:    'Rally: +1 to every unit when its army defends',
   ship:     'Ship: carries its army over water; cannot leave the water except into a city',
 };
