@@ -1,0 +1,1242 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style></head><body>
+<title>Ashen Crowns</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;700&family=Almendra+SC&display=swap">
+<style>
+/* Layout: a war table. The map fills the left; a slate command rail sits on the right (below on phones). */
+:root {
+  color-scheme: dark;
+  --ink: #12161a;        /* table edge, deepest ground */
+  --slate: #1c2329;      /* rail surface */
+  --slate-2: #27313a;    /* raised controls */
+  --line: #3a4753;       /* hairlines */
+  --bone: #e9e4d2;       /* primary text */
+  --dust: #9aa5a8;       /* secondary text */
+  --brass: #f3cf5b;      /* accent: selection, primary action */
+  --good: #7fd08a; --bad: #ff8a7a;
+  --display: "Almendra SC", "Palatino Linotype", Palatino, Georgia, serif;
+  --body: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+}
+html, body { height: 100%; }
+body { background: var(--ink); color: var(--bone); font: 15px/1.4 var(--body); overflow: hidden; }
+#app { height: 100%; display: flex; }
+#mapwrap { flex: 1 1 auto; min-width: 0; position: relative; display: flex; flex-direction: column; }
+#map { flex: 1 1 auto; min-height: 0; width: 100%; display: block; touch-action: none; cursor: crosshair; image-rendering: pixelated; }
+#hover { flex: none; min-height: 2.2em; padding-block: 6px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px;
+  background: var(--slate); border-top: 1px solid var(--line); color: var(--dust); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#side { flex: none; width: 316px; background: var(--slate); border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px;
+  padding-block: 12px; padding-left: 16px; padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow-y: auto; }
+#side > * { flex: none; }
+#side h1 { font: 400 24px/1 var(--display); letter-spacing: .04em; margin: 0; color: var(--brass); }
+#turnbar { display: flex; justify-content: space-between; font-size: 14px; color: var(--dust); }
+#turnbar .who { font-weight: 700; }
+#mini { width: 100%; height: auto; image-rendering: pixelated; border: 1px solid var(--line); cursor: pointer; }
+#treasury { font-variant-numeric: tabular-nums; font-size: 14px; }
+.coin { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--brass); box-shadow: inset -2px -2px 0 #a8862a; margin-right: 6px; }
+.muted { color: var(--dust); font-weight: 400; }
+#panel { display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+#panel h2, #mbox h2 { font: 400 19px/1.1 var(--display); letter-spacing: .03em; margin: 4px 0 0; text-wrap: balance; }
+#panel h3, #mbox h3 { font: 700 12px/1.2 var(--body); letter-spacing: .09em; text-transform: uppercase; margin: 4px 0 0; color: var(--dust); }
+#panel p, #mbox p { margin: 0; }
+.hint { color: var(--dust); font-size: 13px; }
+.units, .prod { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+button { font: inherit; color: var(--bone); background: var(--slate-2); border: 1px solid var(--line); border-radius: 3px; padding: 7px 10px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--dust); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--brass); color: var(--ink); border-color: var(--brass); font-weight: 700; }
+button small { color: var(--dust); font-size: 12px; }
+button.primary small { color: inherit; }
+.unit { display: grid; grid-template-columns: 36px 1fr; column-gap: 8px; align-items: center; text-align: left; padding: 5px 6px; min-width: 0; }
+.unit img { grid-row: span 3; width: 36px; height: 36px; image-rendering: pixelated; align-self: start; }
+.unit .un { font-weight: 700; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.unit .us { font-size: 11px; color: var(--dust); font-variant-numeric: tabular-nums; }
+.unit.on { border-color: var(--brass); box-shadow: inset 0 0 0 1px var(--brass); }
+.unit:disabled { opacity: 1; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+#btns { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+#log { list-style: none; margin: 0; padding: 8px 0 0; border-top: 1px solid var(--line); font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+#modal { position: fixed; inset: 0; background: rgba(8, 10, 12, .78); display: flex; align-items: center; justify-content: center;
+  padding-block: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); z-index: 20; }
+#mbox { background: var(--slate); border: 1px solid var(--line); border-top: 3px solid var(--brass); max-width: 760px; width: 100%; max-height: 100%; overflow-y: auto;
+  padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--dust); }
+.logo { font: 400 clamp(38px, 8vw, 64px)/0.95 var(--display); letter-spacing: .03em; margin: 0; color: var(--brass); text-shadow: 0 3px 0 #6b5516; }
+.fgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fcard { display: grid; grid-template-columns: 48px 48px 1fr; gap: 2px 8px; text-align: left; border-left: 4px solid var(--fc); padding: 10px; }
+.fcard img { width: 48px; height: 48px; image-rendering: pixelated; }
+.fcard b { align-self: center; color: var(--fc); font: 400 18px/1.1 var(--display); }
+.fcard span { grid-column: 1 / -1; font-size: 13px; }
+.offer { display: flex; gap: 14px; align-items: center; }
+.offer img { width: 72px; height: 72px; image-rendering: pixelated; flex: none; }
+.battle { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.bside { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin-top: 6px; }
+.bu { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 3px; background: var(--slate-2); border: 1px solid var(--line); text-align: center; min-width: 0; }
+.bu img { width: 36px; height: 36px; image-rendering: pixelated; }
+.bu .un { font-size: 11px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bu .us { font-size: 11px; color: var(--dust); }
+.bu.act { border-color: var(--brass); }
+.bu.hit { background: #6b2b24; }
+.bu.dead { opacity: .28; filter: grayscale(1); }
+.pips { display: flex; gap: 2px; }
+.pips i { width: 7px; height: 7px; background: var(--good); }
+.pips i.lost { background: #4a2a28; }
+.bres { font-weight: 700; min-height: 1.4em; }
+.bres.good { color: var(--good); } .bres.bad { color: var(--bad); }
+.help { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; max-width: 65ch; }
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  #app { flex-direction: column; height: auto; min-height: 100%; }
+  #mapwrap { height: 62vh; flex: none; }
+  #side { width: auto; border-left: 0; border-top: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); overflow: visible; }
+  #mini { max-width: 260px; }
+  .battle, .fgrid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<div id="app">
+  <div id="mapwrap">
+    <canvas id="map"></canvas>
+    <div id="hover">Drag to scroll the map.</div>
+  </div>
+  <aside id="side">
+    <h1>Ashen Crowns</h1>
+    <div id="turnbar"></div>
+    <canvas id="mini" width="220" height="160"></canvas>
+    <div id="treasury"></div>
+    <div id="btns">
+      <button type="button" id="bNext">Next army</button>
+      <button type="button" id="bEnd" class="primary">End turn</button>
+      <button type="button" id="bHelp" aria-label="How to play">?</button>
+    </div>
+    <div id="panel"></div>
+    <ul id="log"></ul>
+  </aside>
+</div>
+<div id="modal" hidden><div id="mbox" role="dialog" aria-modal="true"></div></div>
+<script>
+'use strict';
+/* Ashen Crowns — static game data. Everything here is original to this project. */
+
+const TILE = 16, SCALE = 3, TS = TILE * SCALE;
+const MAP_W = 44, MAP_H = 32, MAX_STACK = 8, MAP_SEED = 90417;
+const MAP_NAME = 'The Sundered Vale';
+
+const FACTIONS = [
+  { name: 'Sunmarch Compact', short: 'Sunmarch', color: '#e0ad2b', dark: '#8f6712', capital: 'Auremont',
+    special: 'rider', heroCls: 'champion', blurb: 'Plains lords with swift lancers and deep coffers.',
+    heroes: ['Ser Aldous Vane', 'Marta of the Reeds', 'Corwin Hale', 'Dame Isolde Farrow'] },
+  { name: 'Thornwild Kindred', short: 'Thornwild', color: '#49b257', dark: '#1f6a31', capital: 'Eldbough',
+    special: 'warden', heroCls: 'seer', blurb: 'Forest folk whose wardens strike from the trees.',
+    heroes: ['Ysolde Greenmantle', 'Fenn Ashroot', 'Lirael Mossgrave', 'Old Tam Bracken'] },
+  { name: 'Cinderhold Clans', short: 'Cinderhold', color: '#d9523a', dark: '#822717', capital: 'Brazenhearth',
+    special: 'reaver', heroCls: 'champion', blurb: 'Hill clans. Slow, stubborn and very hard to kill.',
+    heroes: ['Brakka Stonejaw', 'Hildr Emberbraid', 'Dorn Ironkettle', 'Ragna Coalhand'] },
+  { name: 'Veilmere Court', short: 'Veilmere', color: '#8f6ad6', dark: '#4c3391', capital: 'Nocthaven',
+    special: 'gryphon', heroCls: 'seer', blurb: 'Sorcerer-princes who rule the sky on gryphon wings.',
+    heroes: ['Maelis the Pale', 'Prince Orrin Veil', 'Sabeth Nightwell', 'Calix Duskmere'] },
+];
+const NEUTRAL = { name: 'Free Cities', short: 'Free', color: '#b9b3a2', dark: '#6f6a5c' };
+
+/* str = battle strength, hp = hits it can take, mv = movement points, turns = build time */
+const UNITS = {
+  levy:    { name: 'Levy',            str: 2, hp: 2, mv: 10, cost: 20,  turns: 1, abil: [] },
+  pike:    { name: 'Pikemen',         str: 3, hp: 2, mv: 10, cost: 35,  turns: 1, abil: ['guard'] },
+  archer:  { name: 'Longbows',        str: 3, hp: 2, mv: 11, cost: 45,  turns: 2, abil: ['volley'] },
+  wolf:    { name: 'Wolf Pack',       str: 3, hp: 2, mv: 16, cost: 40,  turns: 1, abil: ['forester'] },
+  rider:   { name: 'Lancers',         str: 4, hp: 2, mv: 18, cost: 60,  turns: 2, abil: [] },
+  warden:  { name: 'Thorn Wardens',   str: 4, hp: 2, mv: 12, cost: 65,  turns: 2, abil: ['forester', 'volley'] },
+  reaver:  { name: 'Hill Reavers',    str: 5, hp: 3, mv: 9,  cost: 80,  turns: 3, abil: ['hillfolk'] },
+  ram:     { name: 'Ram Crew',        str: 2, hp: 3, mv: 8,  cost: 70,  turns: 3, abil: ['siege'] },
+  bearer:  { name: 'Standard Bearer', str: 2, hp: 2, mv: 12, cost: 80,  turns: 3, abil: ['banner'] },
+  gryphon: { name: 'Gryphon',         str: 5, hp: 3, mv: 18, cost: 130, turns: 4, abil: ['flying'] },
+  troll:   { name: 'Bog Troll',       str: 6, hp: 4, mv: 8,  cost: 120, turns: 4, abil: [] },
+  drake:   { name: 'Ember Drake',     str: 8, hp: 4, mv: 16, cost: 250, turns: 6, abil: ['flying', 'terror'] },
+  champion:{ name: 'Champion',        str: 5, hp: 4, mv: 14, cost: 0,   turns: 0, abil: [], hero: true, mana: 8 },
+  seer:    { name: 'Seer',            str: 3, hp: 3, mv: 14, cost: 0,   turns: 0, abil: [], hero: true, mana: 16 },
+};
+
+const ABILITIES = {
+  guard:    'Guard: +1 when defending a city',
+  volley:   'Volley: 30% chance of a free hit before each duel',
+  forester: 'Forester: moves freely through forest, +1 fighting there',
+  hillfolk: 'Hillfolk: moves freely through hills, +1 fighting there',
+  siege:    'Siege: cancels up to 2 points of city walls',
+  banner:   'Banner: +1 to every unit in its army',
+  flying:   'Flying: crosses water, mountains and all terrain',
+  terror:   'Terror: -1 to every enemy unit in battle',
+};
+
+const ITEMS = [
+  { key: 'blade',  name: 'Blade of First Light', desc: '+2 strength', str: 2 },
+  { key: 'horn',   name: "Marshal's Horn",       desc: '+1 command (whole army)', lead: 1 },
+  { key: 'boots',  name: 'Windstep Boots',       desc: '+6 movement', mv: 6 },
+  { key: 'ring',   name: 'Tithe Ring',           desc: '+15 gold each turn', gold: 15 },
+  { key: 'shield', name: 'Oakheart Shield',      desc: '+1 strength, +1 hit', str: 1, hp: 1 },
+  { key: 'phial',  name: 'Star Phial',           desc: '+8 maximum mana', mana: 8 },
+  { key: 'crown',  name: 'Circlet of Ash',       desc: '+1 command, +1 strength', lead: 1, str: 1 },
+];
+
+const SPELLS = [
+  { key: 'march', name: 'Quickmarch', cost: 4, desc: '+6 movement for the whole army this turn' },
+  { key: 'ward',  name: 'Warding',    cost: 5, desc: '+1 strength for the whole army until your next turn' },
+  { key: 'pack',  name: 'Call the Pack', cost: 8, desc: 'A wolf pack joins the army' },
+];
+
+const CITY_NAMES = ['Pellwick', 'Dunmarrow', 'Ostrel', 'Greywater', 'Fennick', 'Calder Ford', 'Mirebank',
+  'Highcairn', 'Wend', 'Saltreach', 'Brackmoor', 'Tollen', 'Ashby Cross', 'Lantern Hill', 'Quillhaven', 'Rookfall'];
+const RUIN_NAMES = ['Sunken Cloister', 'Hollow Barrow', 'Shattered Observatory', "Wyrm's Rest", 'Drowned Chapel',
+  'Thorn Vault', 'Cairn of Echoes', "Old King's Cistern", 'Mossback Keep', 'The Ninth Stair'];
+
+const TERRAIN_NAMES = { g: 'Grassland', f: 'Forest', h: 'Hills', m: 'Mountains', w: 'Water', s: 'Marsh' };
+'use strict';
+/* Deterministic map builder: the same seed always yields the same land. */
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function valueNoise(w, h, cell, rng) {
+  const gw = Math.ceil(w / cell) + 2, gh = Math.ceil(h / cell) + 2, g = [];
+  for (let i = 0; i < gw * gh; i++) g.push(rng());
+  const out = new Float32Array(w * h);
+  const sm = t => t * t * (3 - 2 * t);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const fx = x / cell, fy = y / cell, x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const tx = sm(fx - x0), ty = sm(fy - y0);
+    const a = g[y0 * gw + x0], b = g[y0 * gw + x0 + 1], c = g[(y0 + 1) * gw + x0], d = g[(y0 + 1) * gw + x0 + 1];
+    out[y * w + x] = (a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty;
+  }
+  return out;
+}
+
+class Heap {
+  constructor() { this.k = []; this.v = []; }
+  get size() { return this.k.length; }
+  push(key, val) {
+    const k = this.k, v = this.v; let i = k.length; k.push(key); v.push(val);
+    while (i > 0) { const p = (i - 1) >> 1; if (k[p] <= k[i]) break;
+      [k[p], k[i]] = [k[i], k[p]]; [v[p], v[i]] = [v[i], v[p]]; i = p; }
+  }
+  pop() {
+    const k = this.k, v = this.v, rk = k[0], rv = v[0], lk = k.pop(), lv = v.pop();
+    if (k.length) { k[0] = lk; v[0] = lv; let i = 0; const n = k.length;
+      for (;;) { let m = i; const l = 2 * i + 1, r = l + 1;
+        if (l < n && k[l] < k[m]) m = l; if (r < n && k[r] < k[m]) m = r; if (m === i) break;
+        [k[m], k[i]] = [k[i], k[m]]; [v[m], v[i]] = [v[i], v[m]]; i = m; } }
+    return [rk, rv];
+  }
+}
+
+function genMap() {
+  const rng = mulberry32(MAP_SEED), W = MAP_W, H = MAP_H;
+  const n1 = valueNoise(W, H, 8, rng), n2 = valueNoise(W, H, 4, rng), mo = valueNoise(W, H, 6, rng), mo2 = valueNoise(W, H, 3, rng);
+  const t = [];
+  for (let y = 0; y < H; y++) {
+    const row = [];
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x, el = 0.6 * n1[i] + 0.4 * n2[i], ms = 0.65 * mo[i] + 0.35 * mo2[i];
+      const dx = Math.abs(x - (W - 1) / 2) / (W / 2), dy = Math.abs(y - (H - 1) / 2) / (H / 2);
+      const d = Math.max(dx, dy), e = el + 0.27 - 0.95 * Math.pow(d, 4);
+      let c = 'g';
+      if (e < 0.5) c = 'w'; else if (e > 0.93) c = 'm'; else if (e > 0.84) c = 'h';
+      else if (ms > 0.56) c = e < 0.62 ? 's' : 'f';
+      row.push(c);
+    }
+    t.push(row);
+  }
+  const cities = [];
+  const caps = [[7, 6], [W - 8, 6], [7, H - 7], [W - 8, H - 7]];
+  caps.forEach(([cx, cy], i) => {
+    for (let y = cy - 2; y <= cy + 2; y++) for (let x = cx - 2; x <= cx + 2; x++)
+      if (t[y][x] === 'w' || t[y][x] === 'm' || Math.max(Math.abs(x - cx), Math.abs(y - cy)) <= 1) t[y][x] = 'g';
+    cities.push({ x: cx, y: cy, cap: i });
+  });
+  const far = (x, y, list, min) => list.every(c => Math.max(Math.abs(c.x - x), Math.abs(c.y - y)) >= min);
+  for (let tries = 0; tries < 6000 && cities.length < 4 + 15; tries++) {
+    const x = 3 + Math.floor(rng() * (W - 6)), y = 3 + Math.floor(rng() * (H - 6));
+    if (t[y][x] === 'w' || t[y][x] === 'm') continue;
+    if (!far(x, y, cities, 6)) continue;
+    cities.push({ x, y, cap: -1 });
+  }
+  cities.forEach(c => { t[c.y][c.x] = 'g'; });
+
+  // Roads: minimum spanning tree over the cities plus each city's nearest neighbour.
+  const road = []; for (let y = 0; y < H; y++) road.push(new Array(W).fill(false));
+  const edges = [], inTree = [0], d2 = (a, b) => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+  while (inTree.length < cities.length) {
+    let best = null;
+    for (const a of inTree) for (let b = 0; b < cities.length; b++) {
+      if (inTree.includes(b)) continue;
+      const dd = d2(cities[a], cities[b]); if (!best || dd < best[2]) best = [a, b, dd];
+    }
+    edges.push(best); inTree.push(best[1]);
+  }
+  // A few extra links so the road net has loops, not just one tree.
+  const extra = [];
+  cities.forEach((c, a) => cities.forEach((o, b) => {
+    if (b <= a || edges.some(e => (e[0] === a && e[1] === b) || (e[0] === b && e[1] === a))) return;
+    extra.push([a, b, d2(c, o)]);
+  }));
+  extra.sort((p, q) => p[2] - q[2]); edges.push(...extra.slice(0, 4));
+  const carveCost = { g: 1, f: 2, h: 3, s: 3, w: 9, m: 12 };
+  for (const [a, b] of edges) {
+    const A = cities[a], B = cities[b], N = W * H, dist = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1);
+    const heap = new Heap(); dist[A.y * W + A.x] = 0; heap.push(0, A.y * W + A.x);
+    while (heap.size) {
+      const [d, i] = heap.pop(); if (d > dist[i]) continue; if (i === B.y * W + B.x) break;
+      const x = i % W, y = (i - x) / W;
+      for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + ox, ny = y + oy; if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) continue;
+        const j = ny * W + nx, nd = d + (road[ny][nx] ? 0.05 : carveCost[t[ny][nx]]);
+        if (nd < dist[j]) { dist[j] = nd; prev[j] = i; heap.push(nd, j); }
+      }
+    }
+    for (let i = B.y * W + B.x; i >= 0; i = prev[i]) {
+      const x = i % W, y = (i - x) / W; road[y][x] = true; if (t[y][x] === 'm') t[y][x] = 'h';
+    }
+  }
+
+  // Ground reachability from the first capital, used to keep ruins reachable on foot.
+  const reach = new Uint8Array(W * H), q = [cities[0].y * W + cities[0].x]; reach[q[0]] = 1;
+  while (q.length) {
+    const i = q.pop(), x = i % W, y = (i - x) / W;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      const nx = x + ox, ny = y + oy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const j = ny * W + nx; if (reach[j]) continue;
+      if ((t[ny][nx] === 'w' || t[ny][nx] === 'm') && !road[ny][nx]) continue;
+      reach[j] = 1; q.push(j);
+    }
+  }
+  const ruins = [];
+  for (let tries = 0; tries < 6000 && ruins.length < 10; tries++) {
+    const x = 2 + Math.floor(rng() * (W - 4)), y = 2 + Math.floor(rng() * (H - 4));
+    if (!reach[y * W + x] || road[y][x] || t[y][x] === 'w') continue;
+    if (!far(x, y, cities, 3) || !far(x, y, ruins, 5)) continue;
+    ruins.push({ x, y });
+  }
+  const cityGrid = new Int16Array(W * H).fill(-1);
+  cities.forEach((c, i) => { cityGrid[c.y * W + c.x] = i; });
+  const ruinGrid = new Int16Array(W * H).fill(-1);
+  ruins.forEach((r, i) => { ruinGrid[r.y * W + r.x] = i; });
+  return { t, road, cities, ruins, cityGrid, ruinGrid, rng };
+}
+'use strict';
+/* Game state and rules: movement, battle, cities, heroes, turns. */
+
+let G = null, MAP = null, AUTO = false;
+const UI = { showBattle: async () => {}, askHero: async () => false, refresh() {}, onHumanTurn() {}, gameOver() {}, tick: async () => {} };
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const idx = (x, y) => y * MAP_W + x;
+const inb = (x, y) => x >= 0 && y >= 0 && x < MAP_W && y < MAP_H;
+const fac = o => (o >= 0 ? FACTIONS[o] : NEUTRAL);
+const isHuman = o => o >= 0 && G.players[o].human;
+
+function logMsg(text, owner = -2) {
+  G.log.push({ t: G.turn, text, owner }); if (G.log.length > 60) G.log.shift();
+}
+
+/* ---------- units ---------- */
+const U = u => UNITS[u.type];
+const has = (u, ab) => UNITS[u.type].abil.includes(ab);
+const itemSum = (u, k) => (u.hero ? u.hero.items.reduce((s, key) => s + (ITEMS.find(i => i.key === key)[k] || 0), 0) : 0);
+const uStr = u => U(u).str + (u.hero ? u.hero.level - 1 + itemSum(u, 'str') : 0);
+const uMaxHp = u => U(u).hp + (u.hero ? Math.floor((u.hero.level - 1) / 2) + itemSum(u, 'hp') : 0);
+const uMaxMp = u => U(u).mv + itemSum(u, 'mv');
+const uMaxMana = u => U(u).mana + u.hero.level * 2 + itemSum(u, 'mana');
+const heroLead = u => (u.hero.level >= 3 ? 1 : 0) + (u.hero.level >= 6 ? 1 : 0) + itemSum(u, 'lead');
+const uName = u => (u.hero ? u.hero.name : U(u).name);
+const upkeep = u => (u.hero ? 0 : Math.max(1, Math.round(U(u).cost / 40)));
+const xpFor = level => 10 * level * level;
+
+function makeUnit(type) { const u = { id: G.nextId++, type, mp: 0 }; u.mp = uMaxMp(u); return u; }
+function makeHero(owner, cls) {
+  const used = new Set(); G.stacks.forEach(s => s.units.forEach(u => u.hero && used.add(u.hero.name)));
+  const names = FACTIONS[owner].heroes.filter(n => !used.has(n));
+  const u = { id: G.nextId++, type: cls, mp: 0, hero: { name: names.length ? pick(names) : 'Wanderer ' + (G.nextId), level: 1, xp: 0, mana: 0, items: [] } };
+  u.hero.mana = Math.floor(uMaxMana(u) / 2); u.mp = uMaxMp(u); return u;
+}
+
+/* ---------- lookups ---------- */
+const stackAt = (x, y) => G.stacks.find(s => s.x === x && s.y === y) || null;
+const stackById = id => G.stacks.find(s => s.id === id) || null;
+const cityAt = (x, y) => { const i = MAP.cityGrid[idx(x, y)]; return i >= 0 ? G.cities[i] : null; };
+const ruinAt = (x, y) => { const i = MAP.ruinGrid[idx(x, y)]; return i >= 0 ? G.ruins[i] : null; };
+function removeStack(s) { const i = G.stacks.indexOf(s); if (i >= 0) G.stacks.splice(i, 1); }
+
+/* ---------- movement ---------- */
+function stepCost(u, x, y) {
+  if (!inb(x, y)) return Infinity;
+  const i = idx(x, y), road = MAP.road[y][x] || MAP.cityGrid[i] >= 0, t = MAP.t[y][x];
+  if (road) return 1;
+  if (has(u, 'flying')) return 2;
+  if (t === 'w' || t === 'm') return Infinity;
+  if (t === 'f') return has(u, 'forester') ? 2 : 4;
+  if (t === 'h') return has(u, 'hillfolk') ? 2 : 5;
+  if (t === 's') return 5;
+  return 2;
+}
+
+function dijkstraMap(units, owner, sx, sy) {
+  const N = MAP_W * MAP_H, dist = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1);
+  const occ = new Array(N); for (const s of G.stacks) occ[idx(s.x, s.y)] = s;
+  const heap = new Heap(), n = units.length; dist[idx(sx, sy)] = 0; heap.push(0, idx(sx, sy));
+  while (heap.size) {
+    const [d, i] = heap.pop(); if (d > dist[i]) continue;
+    const x = i % MAP_W, y = (i - x) / MAP_W;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      if (!ox && !oy) continue; const nx = x + ox, ny = y + oy; if (!inb(nx, ny)) continue;
+      let c = 0; for (const u of units) { const k = stepCost(u, nx, ny); if (k > c) c = k; }
+      if (c === Infinity) continue;
+      const j = idx(nx, ny), nd = d + c; if (nd >= dist[j]) continue;
+      const o = occ[j], ci = MAP.cityGrid[j]; let terminal = false;
+      if (o && o.owner !== owner) terminal = true;
+      else if (o && o.units.length + n > MAX_STACK) continue;
+      if (ci >= 0 && G.cities[ci].owner !== owner) terminal = true;
+      dist[j] = nd; prev[j] = i; if (!terminal) heap.push(nd, j);
+    }
+  }
+  return { dist, prev, sx, sy };
+}
+function pathTo(dm, tx, ty) {
+  let i = idx(tx, ty); if (dm.dist[i] === Infinity) return null;
+  const p = []; const s = idx(dm.sx, dm.sy);
+  while (i !== s && i >= 0) { const x = i % MAP_W; p.push([x, (i - x) / MAP_W]); i = dm.prev[i]; }
+  return p.reverse();
+}
+
+function relocate(from, units, x, y) {
+  from.units = from.units.filter(u => !units.includes(u));
+  if (!from.units.length) removeStack(from);
+  let to = stackAt(x, y);
+  if (!to) { to = { id: G.nextId++, x, y, owner: from.owner, units: [] }; G.stacks.push(to); }
+  to.units.push(...units); return to;
+}
+
+/* Moves the given unit ids along a path as far as their movement allows. Returns the stack they end in (or null). */
+async function moveGroup(stack, ids, path, delay = 0) {
+  let cur = stack; const idset = new Set(ids);
+  for (const [nx, ny] of path) {
+    const units = cur.units.filter(u => idset.has(u.id));
+    if (!units.length) return null;
+    if (units.some(u => u.mp < stepCost(u, nx, ny))) return cur;
+    const o = stackAt(nx, ny), city = cityAt(nx, ny);
+    if ((o && o.owner !== cur.owner) || (city && city.owner !== cur.owner)) {
+      units.forEach(u => { u.mp -= stepCost(u, nx, ny); });
+      return await attack(cur, units, nx, ny);
+    }
+    if (o && o.units.length + units.length > MAX_STACK) return cur;
+    units.forEach(u => { u.mp -= stepCost(u, nx, ny); });
+    cur = relocate(cur, units, nx, ny);
+    if (delay) await UI.tick(delay, cur);
+    if (G.over) return cur;
+  }
+  return cur;
+}
+
+/* ---------- battle ---------- */
+function wallBonus(city) { return Math.ceil(city.level / 2) + (city.level === 4 ? 1 : 0); }
+
+function battleStr(u, own, enemy, x, y, isDef, city) {
+  let s = uStr(u);
+  if (own.some(v => has(v, 'banner'))) s += 1;
+  let lead = 0; for (const v of own) if (v.hero) lead = Math.max(lead, heroLead(v));
+  s += lead;
+  const t = MAP.t[y][x];
+  if (!city) { if (t === 'f' && has(u, 'forester')) s += 1; if (t === 'h' && has(u, 'hillfolk')) s += 1; }
+  if (isDef && city) {
+    let w = wallBonus(city); if (enemy.some(v => has(v, 'siege'))) w = Math.max(0, w - 2);
+    s += w; if (has(u, 'guard')) s += 1;
+  }
+  if (u.bless) s += 1;
+  if (enemy.some(v => has(v, 'terror'))) s -= 1;
+  return Math.max(1, s);
+}
+
+function simulateBattle(att, def, x, y, city) {
+  const order = (a, b) => (a.hero ? 100 : 0) + uStr(a) - ((b.hero ? 100 : 0) + uStr(b));
+  const A = att.slice().sort(order), D = def.slice().sort(order);
+  const str = {}, hp = {};
+  A.forEach(u => { str[u.id] = battleStr(u, att, def, x, y, false, city); hp[u.id] = uMaxHp(u); });
+  D.forEach(u => { str[u.id] = battleStr(u, def, att, x, y, true, city); hp[u.id] = uMaxHp(u); });
+  const events = [], aDead = new Set(), dDead = new Set();
+  let ai = 0, di = 0;
+  const hit = (u, dead) => { hp[u.id]--; events.push({ k: 'hit', id: u.id, hp: hp[u.id] }); if (hp[u.id] <= 0) { dead.add(u.id); events.push({ k: 'die', id: u.id }); return true; } return false; };
+  while (ai < A.length && di < D.length) {
+    const a = A[ai], d = D[di]; events.push({ k: 'duel', a: a.id, d: d.id });
+    let over = false;
+    if (has(a, 'volley') && Math.random() < 0.3 && hit(d, dDead)) { di++; over = true; }
+    if (!over && has(d, 'volley') && Math.random() < 0.3 && hit(a, aDead)) { ai++; over = true; }
+    while (!over) {
+      if (Math.random() < str[a.id] / (str[a.id] + str[d.id])) { if (hit(d, dDead)) { di++; over = true; } }
+      else if (hit(a, aDead)) { ai++; over = true; }
+    }
+  }
+  return { win: di >= D.length, events, aDead, dDead, str, A, D };
+}
+function estimateWin(att, def, x, y, city, n = 14) {
+  let w = 0; for (let i = 0; i < n; i++) if (simulateBattle(att, def, x, y, city).win) w++;
+  return w / n;
+}
+
+function gainXp(heroes, amount) {
+  for (const h of heroes) {
+    h.hero.xp += amount;
+    while (h.hero.xp >= xpFor(h.hero.level)) {
+      h.hero.level++; logMsg(`${h.hero.name} rises to level ${h.hero.level}.`, -2);
+    }
+  }
+}
+
+async function attack(from, units, x, y) {
+  const def = stackAt(x, y), city = cityAt(x, y), owner = from.owner;
+  let res = null;
+  if (def && def.units.length) {
+    res = simulateBattle(units, def.units, x, y, city);
+    const where = city ? city.name : TERRAIN_NAMES[MAP.t[y][x]].toLowerCase();
+    if (!AUTO && (isHuman(owner) || isHuman(def.owner))) await UI.showBattle(res, owner, def.owner, city, x, y);
+    const killedD = def.units.filter(u => res.dDead.has(u.id)), killedA = units.filter(u => res.aDead.has(u.id));
+    from.units = from.units.filter(u => !res.aDead.has(u.id));
+    def.units = def.units.filter(u => !res.dDead.has(u.id));
+    gainXp(units.filter(u => u.hero && !res.aDead.has(u.id)), killedD.reduce((s, u) => s + U(u).str, 0));
+    gainXp(def.units.filter(u => u.hero), killedA.reduce((s, u) => s + U(u).str, 0));
+    [...killedA, ...killedD].forEach(u => { if (u.hero) logMsg(`${u.hero.name} has fallen in battle.`, -2); });
+    if (!def.units.length) removeStack(def);
+    if (!res.win) {
+      logMsg(`${fac(owner).short} is beaten back at ${where} by ${fac(def.owner).short}.`, def.owner);
+      if (!from.units.length) removeStack(from);
+      return G.stacks.includes(from) ? from : null;
+    }
+    logMsg(`${fac(owner).short} defeats ${fac(def.owner).short} at ${where}.`, owner);
+  }
+  const survivors = units.filter(u => !res || !res.aDead.has(u.id));
+  const to = relocate(from, survivors, x, y);
+  if (city && city.owner !== owner) captureCity(city, owner, survivors);
+  return to;
+}
+
+function captureCity(city, owner, units) {
+  const old = city.owner, loot = 15 * city.level + rnd(25);
+  city.owner = owner; city.cur = null; city.left = 0;
+  G.players[owner].gold += loot;
+  logMsg(`${fac(owner).short} takes ${city.name} and seizes ${loot} gold.`, owner);
+  gainXp(units.filter(u => u.hero), 6 + 2 * city.level);
+  if (old >= 0 && !G.cities.some(c => c.owner === old)) eliminate(old);
+}
+function eliminate(p) {
+  G.players[p].alive = false;
+  G.stacks = G.stacks.filter(s => s.owner !== p);
+  logMsg(`${FACTIONS[p].name} has been destroyed.`, p);
+  const alive = G.players.filter(q => q.alive);
+  if (alive.length === 1) { G.over = true; G.winner = alive[0].id; }
+  else if (!AUTO && G.players[p].human) { G.over = true; G.winner = -1; }
+}
+
+/* ---------- cities ---------- */
+const cityIncome = c => 10 + 5 * c.level + (c.capital >= 0 ? 10 : 0);
+const upgradeCost = c => 120 * c.level;
+function income(p) {
+  let inc = 0, up = 0;
+  for (const c of G.cities) if (c.owner === p) inc += cityIncome(c);
+  for (const s of G.stacks) if (s.owner === p) for (const u of s.units) { up += upkeep(u); inc += itemSum(u, 'gold'); }
+  return { inc, up, net: inc - up };
+}
+function setProduction(city, type) {
+  const pl = G.players[city.owner];
+  if (city.cur && city.left === UNITS[city.cur].turns) pl.gold += UNITS[city.cur].cost; // nothing built yet: refund
+  city.cur = null;
+  if (!type) return true;
+  if (pl.gold < UNITS[type].cost) return false;
+  pl.gold -= UNITS[type].cost; city.cur = type; city.left = UNITS[type].turns; return true;
+}
+function upgradeCity(city) {
+  const pl = G.players[city.owner], cost = upgradeCost(city);
+  if (city.level >= 4 || pl.gold < cost) return false;
+  pl.gold -= cost; city.level++; logMsg(`${city.name} is fortified to level ${city.level}.`, city.owner); return true;
+}
+
+/* ---------- heroes ---------- */
+function castSpell(stack, hero, key) {
+  const sp = SPELLS.find(s => s.key === key); if (!sp || hero.hero.mana < sp.cost) return false;
+  if (key === 'pack' && stack.units.length >= MAX_STACK) return false;
+  hero.hero.mana -= sp.cost;
+  if (key === 'march') stack.units.forEach(u => { u.mp += 6; });
+  if (key === 'ward') stack.units.forEach(u => { u.bless = true; });
+  if (key === 'pack') stack.units.push(makeUnit('wolf'));
+  return true;
+}
+
+function searchRuin(stack, hero) {
+  const ruin = ruinAt(stack.x, stack.y); if (!ruin || ruin.explored) return null;
+  const guardians = ['a barrow wight', 'a nest of cave spiders', 'a stone sentinel', 'a mad hermit-mage', 'a pack of ghouls', 'an ancient wyrmling'];
+  const g = 3 + rnd(5), who = pick(guardians), s = uStr(hero);
+  let hh = uMaxHp(hero), gh = 3;
+  while (hh > 0 && gh > 0) { if (Math.random() < s / (s + g)) gh--; else hh--; }
+  if (hh <= 0) {
+    stack.units = stack.units.filter(u => u !== hero); if (!stack.units.length) removeStack(stack);
+    const text = `${hero.hero.name} enters ${ruin.name} and is slain by ${who}.`;
+    logMsg(text, stack.owner); return { ok: false, text };
+  }
+  ruin.explored = true; gainXp([hero], 8 + g);
+  let text = `${hero.hero.name} defeats ${who} in ${ruin.name}`;
+  const free = ITEMS.filter(i => !G.itemsFound.includes(i.key)), roll = Math.random();
+  if (roll < 0.4 && free.length) {
+    const it = pick(free); G.itemsFound.push(it.key); hero.hero.items.push(it.key);
+    text += ` and finds the ${it.name} (${it.desc}).`;
+  } else if (roll < 0.65 && stack.units.length < MAX_STACK) {
+    const type = pick(['troll', 'gryphon', 'drake', 'reaver']), n = type === 'drake' ? 1 : Math.min(2, MAX_STACK - stack.units.length);
+    for (let i = 0; i < n; i++) stack.units.push(makeUnit(type));
+    text += ` and wins the loyalty of ${n === 1 ? 'a' : 'two'} ${UNITS[type].name}${n > 1 ? 's' : ''}.`;
+  } else {
+    const gold = 90 + rnd(140); G.players[stack.owner].gold += gold; text += ` and carries off ${gold} gold.`;
+  }
+  logMsg(text, stack.owner); return { ok: true, text };
+}
+
+/* ---------- turns ---------- */
+function newGame(human) {
+  MAP = genMap();
+  G = { turn: 0, cur: -1, nextId: 1, over: false, winner: null, log: [], itemsFound: [], stacks: [], cities: [], ruins: [],
+    players: FACTIONS.map((f, i) => ({ id: i, human: i === human, gold: 150, alive: true, heroOffer: 5 + rnd(4) })) };
+  let ni = 0; const pool = ['levy', 'pike', 'archer', 'wolf', 'rider', 'ram', 'bearer', 'reaver', 'troll', 'gryphon', 'warden'];
+  MAP.cities.forEach((c, i) => {
+    const city = { id: i, x: c.x, y: c.y, capital: c.cap, owner: c.cap, level: 1, prod: [], cur: null, left: 0, name: '' };
+    if (c.cap >= 0) {
+      const f = FACTIONS[c.cap]; city.name = f.capital; city.level = 2;
+      city.prod = ['levy', 'pike', 'archer', f.special];
+      const s = { id: G.nextId++, x: c.x, y: c.y, owner: c.cap, units: [] }; G.stacks.push(s);
+      s.units.push(makeHero(c.cap, f.heroCls), makeUnit('levy'), makeUnit('levy'), makeUnit('pike'));
+    } else {
+      city.name = CITY_NAMES[ni++ % CITY_NAMES.length];
+      const central = Math.abs(c.x - MAP_W / 2) < 9 && Math.abs(c.y - MAP_H / 2) < 7;
+      city.level = central ? 2 : 1 + (rnd(4) === 0 ? 1 : 0);
+      const set = new Set(['levy']); while (set.size < 4) set.add(pick(pool)); city.prod = [...set].sort((a, b) => UNITS[a].cost - UNITS[b].cost);
+      const s = { id: G.nextId++, x: c.x, y: c.y, owner: -1, units: [] }; G.stacks.push(s);
+      const n = central ? 3 : 1 + rnd(2); for (let k = 0; k < n; k++) s.units.push(makeUnit(pick(central ? ['pike', 'archer', 'reaver'] : ['levy', 'levy', 'pike', 'archer'])));
+    }
+    G.cities.push(city);
+  });
+  MAP.ruins.forEach((r, i) => G.ruins.push({ x: r.x, y: r.y, name: RUIN_NAMES[i % RUIN_NAMES.length], explored: false }));
+  logMsg(`War comes to ${MAP_NAME}.`);
+}
+
+async function beginTurn(p) {
+  const pl = G.players[p], net = income(p).net;
+  if (G.turn > 1) pl.gold += net;
+  if (pl.gold < 0) {
+    pl.gold = 0; let worst = null, ws = null;
+    for (const s of G.stacks) if (s.owner === p) for (const u of s.units) if (!u.hero && (!worst || upkeep(u) > upkeep(worst))) { worst = u; ws = s; }
+    if (worst) { ws.units = ws.units.filter(u => u !== worst); if (!ws.units.length) removeStack(ws); logMsg(`Unpaid, a ${U(worst).name} deserts ${fac(p).short}.`, p); }
+  }
+  for (const s of G.stacks) if (s.owner === p) for (const u of s.units) {
+    u.mp = uMaxMp(u); u.bless = false;
+    if (u.hero) u.hero.mana = Math.min(uMaxMana(u), u.hero.mana + 2);
+  }
+  for (const c of G.cities) {
+    if (c.owner !== p || !c.cur) continue;
+    if (c.left > 0) c.left--;
+    if (c.left > 0) continue;
+    let s = stackAt(c.x, c.y);
+    if (s && s.units.length >= MAX_STACK) continue; // no room: wait
+    if (!s) { s = { id: G.nextId++, x: c.x, y: c.y, owner: p, units: [] }; G.stacks.push(s); }
+    s.units.push(makeUnit(c.cur));
+    const type = c.cur; c.cur = null;
+    if (!setProduction(c, type)) logMsg(`${c.name} halts production: not enough gold.`, p);
+  }
+  if (G.turn >= pl.heroOffer) {
+    const heroes = G.stacks.filter(s => s.owner === p).reduce((n, s) => n + s.units.filter(u => u.hero).length, 0);
+    const home = G.cities.find(c => c.owner === p && c.capital === p) || G.cities.find(c => c.owner === p);
+    const st = home && stackAt(home.x, home.y), cost = 80 + 60 * heroes;
+    pl.heroOffer = G.turn + 6 + rnd(5);
+    if (home && heroes < 3 && (!st || st.units.length < MAX_STACK) && pl.gold >= cost) {
+      const cls = pick(['champion', 'seer']);
+      const yes = pl.human && !AUTO ? await UI.askHero(cls, cost, home) : pl.gold >= cost + 60;
+      if (yes) {
+        pl.gold -= cost; const h = makeHero(p, cls);
+        let s = stackAt(home.x, home.y); if (!s) { s = { id: G.nextId++, x: home.x, y: home.y, owner: p, units: [] }; G.stacks.push(s); }
+        s.units.push(h); logMsg(`${h.hero.name}, a ${U(h).name.toLowerCase()}, joins ${fac(p).short} at ${home.name}.`, p);
+      }
+    }
+  }
+}
+
+/* Runs turns until it is a human's move (or the game ends). */
+async function runTurns() {
+  while (!G.over) {
+    G.cur = (G.cur + 1) % FACTIONS.length; if (G.cur === 0) G.turn++;
+    if (AUTO && G.turn > 150) { G.over = true; G.winner = -2; break; }
+    if (!G.players[G.cur].alive) continue;
+    await beginTurn(G.cur);
+    if (G.players[G.cur].human && !AUTO) { saveGame(); UI.onHumanTurn(); return; }
+    UI.refresh();
+    await aiTurn(G.cur);
+  }
+  UI.gameOver();
+}
+
+function saveGame() { try { localStorage.setItem('ashen-crowns-save', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
+function loadGame() {
+  try {
+    const raw = localStorage.getItem('ashen-crowns-save'); if (!raw) return false;
+    const g = JSON.parse(raw); if (!g || !g.cities || g.over) return false;
+    MAP = genMap(); G = g; return true;
+  } catch (e) { return false; }
+}
+function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }
+'use strict';
+/* Computer opponents. */
+
+function aiEconomy(p) {
+  const pl = G.players[p];
+  const mine = G.cities.filter(c => c.owner === p).sort((a, b) => (b.capital >= 0) - (a.capital >= 0));
+  for (const c of mine) {
+    if (c.cur) continue;
+    const opts = c.prod.filter(t => UNITS[t].cost <= pl.gold);
+    if (!opts.length) continue;
+    opts.sort((a, b) => UNITS[b].str * UNITS[b].hp - UNITS[a].str * UNITS[a].hp);
+    const choice = Math.random() < 0.3 ? pick(opts) : opts[0];
+    setProduction(c, choice);
+  }
+  for (const c of mine) if (c.level < 4 && pl.gold >= upgradeCost(c) + 160) upgradeCity(c);
+}
+
+function aiGarrison(p, city) {
+  let need = city.capital >= 0 ? 2 : 1;
+  for (const s of G.stacks) {
+    if (s.owner === p || s.owner < 0) continue;
+    if (Math.max(Math.abs(s.x - city.x), Math.abs(s.y - city.y)) <= 5) { need += 1; break; }
+  }
+  return need;
+}
+
+async function aiStack(p, s) {
+  const city = cityAt(s.x, s.y);
+  let movers = s.units.filter(u => u.mp >= 2);
+  if (city && city.owner === p) {
+    const need = aiGarrison(p, city);
+    const sorted = s.units.slice().sort((a, b) => (a.hero ? 50 : 0) + uStr(a) - ((b.hero ? 50 : 0) + uStr(b)));
+    const stay = new Set(sorted.slice(0, need).map(u => u.id));
+    movers = movers.filter(u => !stay.has(u.id));
+  } else if (movers.length < s.units.length) return; // keep field armies together
+  if (!movers.length) return;
+
+  const dm = dijkstraMap(movers, p, s.x, s.y);
+  const hero = movers.find(u => u.hero), cands = [];
+  for (const c of G.cities) {
+    if (c.owner === p) continue; const d = dm.dist[idx(c.x, c.y)]; if (d === Infinity) continue;
+    cands.push({ x: c.x, y: c.y, d, v: (c.capital >= 0 ? 260 : 110) + 30 * c.level, city: c });
+  }
+  for (const o of G.stacks) {
+    if (o.owner === p || o.owner < 0 || cityAt(o.x, o.y)) continue; const d = dm.dist[idx(o.x, o.y)]; if (d === Infinity) continue;
+    cands.push({ x: o.x, y: o.y, d, v: 40 + o.units.reduce((n, u) => n + uStr(u) * 4, 0) });
+  }
+  if (hero && uStr(hero) >= 5) for (const r of G.ruins) {
+    if (r.explored) continue; const d = dm.dist[idx(r.x, r.y)]; if (d === Infinity || d === 0) continue;
+    cands.push({ x: r.x, y: r.y, d, v: 130, ruin: r });
+  }
+  cands.forEach(c => { c.score = c.v / (c.d + 8); });
+  cands.sort((a, b) => b.score - a.score);
+  let target = null;
+  for (const c of cands.slice(0, 6)) {
+    const def = stackAt(c.x, c.y);
+    if (def && def.owner !== p) {
+      const need = movers.length >= 6 ? 0.55 : 0.68;
+      if (estimateWin(movers, def.units, c.x, c.y, c.city || null) < need) continue;
+    } else if (c.ruin && def) continue;
+    target = c; break;
+  }
+  let path = null;
+  if (target) path = pathTo(dm, target.x, target.y);
+  else if (!(city && city.owner === p)) {
+    // Nothing worth attacking: fall back to the nearest friendly city and regroup.
+    let best = null;
+    for (const c of G.cities) { if (c.owner !== p) continue; const d = dm.dist[idx(c.x, c.y)]; if (d < Infinity && (!best || d < best.d)) best = { c, d }; }
+    if (best) path = pathTo(dm, best.c.x, best.c.y);
+  }
+  if (!path || !path.length) return;
+  if (target && hero && hero.hero.mana >= 5 && !hero.bless && stackAt(target.x, target.y) && target.d <= Math.min(...movers.map(u => u.mp))) {
+    movers.forEach(u => { u.bless = true; }); hero.hero.mana -= 5;
+  }
+  const end = await moveGroup(s, movers.map(u => u.id), path, AUTO ? 0 : 28);
+  if (end && !G.over) {
+    const h = end.units.find(u => u.hero), r = ruinAt(end.x, end.y);
+    if (h && r && !r.explored && end.owner === p && uStr(h) >= 5) searchRuin(end, h);
+  }
+}
+
+async function aiTurn(p) {
+  aiEconomy(p);
+  for (let pass = 0; pass < 2; pass++) {
+    const ids = G.stacks.filter(s => s.owner === p).map(s => s.id);
+    for (const id of ids) {
+      const s = stackById(id); if (!s || s.owner !== p) continue;
+      await aiStack(p, s); if (G.over) return;
+    }
+  }
+  aiEconomy(p);
+}
+'use strict';
+/* Original pixel art, drawn in code: unit sprites from character grids, terrain and cities procedurally. */
+
+const PAL = { k: '#1a1423', w: '#f2efe6', g: '#9aa0a8', d: '#5b6068', s: '#e2b48c', b: '#7a4e2a', B: '#4d2f18', y: '#e8c04a',
+  r: '#c0392b', o: '#e67e22', n: '#5aa845', N: '#2f6b2b', u: '#3d7dd8', p: '#7d4fb3', e: '#d9d4b8', t: '#3aa39a' };
+
+const ART = {
+  levy: ['.....kk.....', '....kssk..g.', '....kssk..g.', '...kFFFFk.b.', '..kFFFFFFkb.', '..kFfFFfFsb.', '..ksFFFFk.b.', '...kFFFFk.b.', '...kbbbbk.b.', '...kb..bk...', '...kb..bk...', '..kkk..kkk..'],
+  pike: ['.g...kkk....', '.g..kgggk...', '.g..kgssk...', '.g..kkssk...', '.b.kFFFFFk..', '.bskFFwwFFk.', '.b.kFwFFwFk.', '.b.kFFwwFFk.', '.b..kffffk..', '.b..kd..dk..', '.b..kd..dk..', '...kkk..kkk.'],
+  archer: ['....kkk.....', '...kNNNk..k.', '...kssNk.kb.', '...kssk.k.b.', '..kFFFFk..b.', '.kFFFFFsyyb.', '.kFfFFFk..b.', '..kFFFFk.kb.', '..kbffbk..k.', '..kb..bk....', '..kb..bk....', '.kkk..kkk...'],
+  rider: ['......kk....', '.....kggk...', '.....kssk...', '..kk.kFFk...', '.kbbkFFFFk..', 'kbbbbkFFkbk.', 'kbkbbbbbbbbk', '.k.kbbbbbbbk', '...kbbbbbbk.', '...kbk..kbk.', '...kbk..kbk.', '...kk...kk..'],
+  warden: ['....kkkk....', '...kNNNNk...', '...kNssNk.k.', '...kNssk.kn.', '..kNNNNk.kn.', '.kNFFFNsttn.', '.kNFFFNk.kn.', '..kNFFNk.kn.', '..kNNNNk..k.', '..kn..nk....', '..kn..nk....', '.kkk..kkk...'],
+  reaver: ['............', '..kk..kkkk..', '.kggk.kggk..', '.kggkkkssk..', '..kb.koook..', '..kbkFoooFk.', '..kskFFooFk.', '..kb.kFFFFk.', '..kb.kFffFk.', '.....kd..dk.', '....kkd..dkk', '....kkk..kkk'],
+  wolf: ['............', '............', '.k.......kk.', 'kgk.....kggk', 'kggkkkkkgkgk', '.kgggggggggk', '.kggggggggk.', '.kgdggggdgk.', '.kgkkggkkgk.', '.kgk.kk.kgk.', '.kgk....kgk.', '.kk......kk.'],
+  ram: ['............', '.kkkkkkkkkk.', 'kFFFFFFFFFFk', 'kFffFFFFffFk', '.kkkkkkkkkk.', 'kbbbbbbbbkgk', 'kBBBBBBBBkgk', 'kbbbbbbbbkgk', '.kkkkkkkkkk.', '.kddk..kddk.', '.kddk..kddk.', '..kk....kk..'],
+  bearer: ['.kkkkkk.....', '.kFFFFFk....', '.kFyyFFk.kk.', '.kFFyFFkkssk', '.kFFFFk.kssk', '.kkkkk.kFFFk', '.b....kFFFFk', '.b....sFFFFk', '.b....kFffk.', '.b....kd.dk.', '.b....kd.dk.', '.....kkk.kkk'],
+  gryphon: ['k.........k.', 'kw.......kwk', 'kwwk.kkk.kwk', 'kwwwkyyykwwk', '.kwwkyykywk.', '.kwwbbbbwwk.', '..kkbbbbkk..', '..kbbbbbbk..', '..kbbkkbbk..', '..kyk..kyk..', '..kyk..kyk..', '..kk....kk..'],
+  troll: ['...kkkk.....', '..knnnnk..kk', '..knrnrk.kbk', '..knnnnk.kbk', '.knnnnnnkkbk', 'knnnNNnnnnbk', 'knnkNNknnkk.', 'knnkNNkk....', '.kkknnk.....', '..knkknk....', '..knk.knk...', '.kkk..kkk...'],
+  drake: ['.....kk...k.', '....krrk.krk', '.kk.krykkrrk', 'krrkkrrkrrrk', 'krrrkrrrrrk.', '.krrrrrrrrk.', '..krroorrk..', '..krroorrkk.', '..krrrrrkrk.', '..krk.krkkrk', '..krk.krk.kk', '..kk..kk....'],
+  champion: ['.....yy...w.', '....kyyk..w.', '...kggggk.w.', '...kgkkgk.w.', '...kggggk.w.', '..kFFFFFFkyk', '.kFFyFFyFFbk', '.kgFFyyFFgk.', '..kgFFFFgk..', '...kggggk...', '...kg..gk...', '..kkk..kkk..'],
+  seer: ['.y...kk.....', 'yty.kppk....', '.y.kppppk...', '.b.kpsspk...', '.b.kwsswk...', '.bkpwwwwpk..', '.bspFwwFppk.', '.bkpFFFFpk..', '.b.kpFFpk...', '.b.kppppk...', '.b.kppppk...', '...kkkkkk...'],
+};
+
+const spriteCache = {};
+function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+function unitSprite(type, owner) {
+  const key = type + ':' + owner; if (spriteCache[key]) return spriteCache[key];
+  const f = fac(owner), c = mk(12, 12), x = c.getContext('2d'), rows = ART[type];
+  for (let r = 0; r < 12; r++) for (let q = 0; q < 12; q++) {
+    const ch = (rows[r] || '')[q] || '.'; if (ch === '.') continue;
+    x.fillStyle = ch === 'F' ? f.color : ch === 'f' ? f.dark : PAL[ch] || '#f0f'; x.fillRect(q, r, 1, 1);
+  }
+  return (spriteCache[key] = c);
+}
+
+function citySprite(owner, level) {
+  const key = 'city:' + owner + ':' + level; if (spriteCache[key]) return spriteCache[key];
+  const f = fac(owner), c = mk(16, 16), x = c.getContext('2d'), R = (col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
+  R('#1a1423', 0, 5, 16, 11);                    // outline mass
+  R('#bdb7a6', 2, 9, 12, 6); R('#8f8979', 2, 13, 12, 2);
+  for (let i = 2; i < 14; i += 2) R('#bdb7a6', i, 8, 1, 1);
+  R('#cfc9b8', 1, 6, 3, 9); R('#cfc9b8', 12, 6, 3, 9); R('#a39d8c', 3, 6, 1, 9); R('#a39d8c', 14, 6, 1, 9);
+  R(f.color, 1, 5, 3, 1); R(f.color, 12, 5, 3, 1); R(f.dark, 2, 4, 1, 1); R(f.dark, 13, 4, 1, 1);
+  R('#3a2a1c', 7, 11, 2, 4); R('#1a1423', 7, 10, 2, 1);
+  if (level >= 2) { R('#1a1423', 5, 3, 6, 6); R('#cfc9b8', 6, 5, 4, 4); R(f.color, 6, 4, 4, 1); R(f.dark, 7, 3, 2, 1); R('#3a2a1c', 7, 6, 1, 2); }
+  if (level >= 3) { R('#1a1423', 8, 0, 1, 3); R(f.color, 9, 0, 3, 2); R(f.dark, 9, 1, 2, 1); }
+  if (level >= 4) { R('#e8c04a', 2, 9, 12, 1); R('#e8c04a', 1, 6, 3, 1); R('#e8c04a', 12, 6, 3, 1); }
+  return (spriteCache[key] = c);
+}
+
+function ruinSprite(explored) {
+  const key = 'ruin:' + explored; if (spriteCache[key]) return spriteCache[key];
+  const c = mk(16, 16), x = c.getContext('2d'), R = (col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
+  const lt = explored ? '#7d7a72' : '#c5c1b4', dk = explored ? '#55524b' : '#8b877b';
+  R('#1a1423', 2, 4, 4, 10); R('#1a1423', 10, 6, 4, 8); R('#1a1423', 1, 13, 14, 2); R('#1a1423', 6, 9, 4, 5);
+  R(lt, 3, 5, 2, 8); R(dk, 4, 5, 1, 8); R(lt, 11, 7, 2, 6); R(dk, 12, 7, 1, 6); R(dk, 2, 13, 12, 1);
+  R(lt, 7, 10, 2, 3); R(lt, 2, 4, 4, 1);
+  if (!explored) { R('#e8c04a', 7, 7, 2, 2); R('#fff6c9', 7, 7, 1, 1); }
+  return (spriteCache[key] = c);
+}
+
+/* Paints the whole land once at 16px per tile; the view scales it up with smoothing off. */
+function paintTerrain() {
+  const W = MAP_W, H = MAP_H, c = mk(W * TILE, H * TILE), x = c.getContext('2d'), rng = mulberry32(MAP_SEED ^ 0x51ab);
+  const R = (col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
+  const ri = n => Math.floor(rng() * n);
+  const T = (tx, ty) => (tx < 0 || ty < 0 || tx >= W || ty >= H ? 'w' : MAP.t[ty][tx]);
+  const grass = (ox, oy) => { R('#4f9a3c', ox, oy, 16, 16); for (let i = 0; i < 9; i++) R(i % 2 ? '#5fae48' : '#44873a', ox + ri(16), oy + ri(16), 1 + ri(2), 1); };
+  for (let ty = 0; ty < H; ty++) for (let tx = 0; tx < W; tx++) {
+    const ox = tx * 16, oy = ty * 16, t = MAP.t[ty][tx];
+    if (t === 'w') {
+      R('#2a66ab', ox, oy, 16, 16);
+      for (let i = 0; i < 4; i++) R(i % 2 ? '#3f82c9' : '#225a9b', ox + ri(12), oy + 1 + ri(14), 3 + ri(2), 1);
+      const sand = '#dcc98e', foam = '#a9d0f0';
+      if (T(tx, ty - 1) !== 'w') { R(sand, ox, oy, 16, 2); R(foam, ox, oy + 2, 16, 1); }
+      if (T(tx, ty + 1) !== 'w') { R(sand, ox, oy + 14, 16, 2); R(foam, ox, oy + 13, 16, 1); }
+      if (T(tx - 1, ty) !== 'w') { R(sand, ox, oy, 2, 16); R(foam, ox + 2, oy + 2, 1, 12); }
+      if (T(tx + 1, ty) !== 'w') { R(sand, ox + 14, oy, 2, 16); R(foam, ox + 13, oy + 2, 1, 12); }
+    } else if (t === 's') {
+      R('#56703b', ox, oy, 16, 16);
+      for (let i = 0; i < 3; i++) { const a = ox + 1 + ri(11), b = oy + 2 + ri(11); R('#3c6170', a, b, 4, 2); R('#5c8796', a + 1, b, 2, 1); }
+      for (let i = 0; i < 5; i++) { const a = ox + ri(15), b = oy + ri(13); R('#9aa83e', a, b, 1, 3); R('#c9c06a', a, b, 1, 1); }
+    } else {
+      grass(ox, oy);
+      if (t === 'f') {
+        for (const [qx, qy] of [[1, 1], [9, 0], [4, 7], [10, 8]]) {
+          const a = ox + qx + ri(2), b = oy + qy + ri(2);
+          R('#1c4a20', a, b + 1, 6, 5); R('#2d6e2a', a + 1, b, 4, 5); R('#44943a', a + 1, b, 2, 2); R('#5a3b1e', a + 2, b + 6, 2, 1);
+        }
+      } else if (t === 'h') {
+        for (const [qx, qy] of [[0, 2], [7, 7]]) {
+          const a = ox + qx + ri(2), b = oy + qy + ri(2);
+          R('#557a30', a, b + 4, 9, 2); R('#7f9c43', a + 1, b + 2, 7, 3); R('#9db955', a + 2, b + 1, 5, 2); R('#b9cf6c', a + 3, b, 3, 1); R('#557a30', a + 6, b + 2, 2, 3);
+        }
+      } else if (t === 'm') {
+        for (const [qx, qy, hgt] of [[8, 1, 9], [3, 5, 9]]) {
+          const cx = ox + qx, top = oy + qy;
+          for (let r = 0; r < hgt; r++) { R('#6d6a66', cx - Math.min(r, 6), top + r, 2 * Math.min(r, 6) + 1, 1); R('#a5a29b', cx - Math.min(r, 6), top + r, Math.min(r, 6) + 1, 1); }
+          R('#f4f4f4', cx, top, 1, 1); R('#f4f4f4', cx - 1, top + 1, 3, 1); R('#dcdcdc', cx - 2, top + 2, 2, 1);
+        }
+      }
+    }
+  }
+  // Roads and bridges, joined to neighbouring road tiles.
+  const isRoad = (tx, ty) => tx >= 0 && ty >= 0 && tx < W && ty < H && (MAP.road[ty][tx] || MAP.cityGrid[ty * W + tx] >= 0);
+  for (let ty = 0; ty < H; ty++) for (let tx = 0; tx < W; tx++) {
+    if (!MAP.road[ty][tx]) continue;
+    const ox = tx * 16, oy = ty * 16, water = MAP.t[ty][tx] === 'w';
+    const edge = water ? '#4d2f18' : '#a07f4a', mid = water ? '#9a6a35' : '#d2b077';
+    const seg = (a, b, w, h) => { R(edge, ox + a - (w < h ? 1 : 0), oy + b - (w < h ? 0 : 1), w + (w < h ? 2 : 0), h + (w < h ? 0 : 2)); };
+    const fill = (a, b, w, h) => R(mid, ox + a, oy + b, w, h);
+    const n = isRoad(tx, ty - 1), s = isRoad(tx, ty + 1), w = isRoad(tx - 1, ty), e = isRoad(tx + 1, ty);
+    if (n) seg(7, 0, 2, 9); if (s) seg(7, 7, 2, 9); if (w) seg(0, 7, 9, 2); if (e) seg(7, 7, 9, 2);
+    if (n) fill(7, 0, 2, 9); if (s) fill(7, 7, 2, 9); if (w) fill(0, 7, 9, 2); if (e) fill(7, 7, 9, 2);
+    if (water) for (let i = 1; i < 16; i += 3) { if (w || e) R('#4d2f18', ox + i, oy + 7, 1, 2); if (n || s) R('#4d2f18', ox + 7, oy + i, 2, 1); }
+  }
+  return c;
+}
+'use strict';
+/* Rendering, input and panels. */
+
+(() => {
+  const $ = id => document.getElementById(id);
+  const cv = $('map'), ctx = cv.getContext('2d'), mini = $('mini'), mctx = mini.getContext('2d');
+  let terrain = null, HUMAN = 0, sel = null, selCity = null, busy = true, hover = null, preview = null, cam = { x: 0, y: 0 }, vw = 0, vh = 0;
+  const urlCache = {};
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const spriteURL = (type, owner) => urlCache[type + owner] || (urlCache[type + owner] = unitSprite(type, owner).toDataURL());
+
+  /* ---------- camera ---------- */
+  function resize() {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    vw = Math.max(50, Math.floor(r.width)); vh = Math.max(50, Math.floor(r.height));
+    cv.width = vw * dpr; cv.height = vh * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); clampCam();
+  }
+  function clampCam() {
+    const mw = MAP_W * TS, mh = MAP_H * TS;
+    cam.x = mw <= vw ? (mw - vw) / 2 : Math.max(0, Math.min(mw - vw, cam.x));
+    cam.y = mh <= vh ? (mh - vh) / 2 : Math.max(0, Math.min(mh - vh, cam.y));
+  }
+  function centerOn(x, y) { cam.x = x * TS + TS / 2 - vw / 2; cam.y = y * TS + TS / 2 - vh / 2; clampCam(); }
+  const onScreen = (x, y) => x * TS + TS > cam.x && x * TS < cam.x + vw && y * TS + TS > cam.y && y * TS < cam.y + vh;
+
+  /* ---------- drawing ---------- */
+  function label(text, x, y, color) {
+    ctx.font = '600 11px "Alegreya Sans", system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(16,18,20,.85)'; ctx.strokeText(text, x, y); ctx.fillStyle = color; ctx.fillText(text, x, y);
+  }
+  function badge(px, py, n, owner, dim) {
+    const f = fac(owner);
+    ctx.fillStyle = '#14161a'; ctx.fillRect(px + TS - 17, py + 1, 16, 15);
+    ctx.fillStyle = dim ? f.dark : f.color; ctx.fillRect(px + TS - 16, py + 2, 14, 13);
+    ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#14161a'; ctx.fillText(String(n), px + TS - 9, py + 9);
+  }
+  function render() {
+    if (!G || !terrain) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#12161a'; ctx.fillRect(0, 0, vw, vh);
+    ctx.save(); ctx.translate(-Math.round(cam.x), -Math.round(cam.y));
+    ctx.drawImage(terrain, 0, 0, MAP_W * TS, MAP_H * TS);
+    for (const r of G.ruins) if (onScreen(r.x, r.y)) ctx.drawImage(ruinSprite(r.explored), r.x * TS, r.y * TS, TS, TS);
+    for (const c of G.cities) if (onScreen(c.x, c.y)) ctx.drawImage(citySprite(c.owner, c.level), c.x * TS, c.y * TS, TS, TS);
+    for (const s of G.stacks) {
+      if (!onScreen(s.x, s.y)) continue;
+      const px = s.x * TS, py = s.y * TS, inCity = MAP.cityGrid[idx(s.x, s.y)] >= 0, f = fac(s.owner);
+      const idle = s.owner === HUMAN && !s.units.some(u => u.mp >= 1);
+      if (!inCity) {
+        const top = s.units.reduce((a, b) => ((b.hero ? 100 : 0) + uStr(b) > (a.hero ? 100 : 0) + uStr(a) ? b : a));
+        ctx.fillStyle = 'rgba(10,12,14,.45)'; ctx.beginPath(); ctx.ellipse(px + 24, py + 41, 17, 6, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = f.dark; ctx.beginPath(); ctx.ellipse(px + 24, py + 39, 15, 5, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = f.color; ctx.beginPath(); ctx.ellipse(px + 24, py + 38, 13, 4, 0, 0, 7); ctx.fill();
+        ctx.drawImage(unitSprite(top.type, s.owner), px + 6, py + 4, 36, 36);
+      }
+      badge(px, py, s.units.length, s.owner, idle);
+    }
+    for (const c of G.cities) if (onScreen(c.x, c.y)) label(c.name, c.x * TS + TS / 2, c.y * TS + TS - 2, c.owner >= 0 ? fac(c.owner).color : '#e9e4d2');
+    if (preview && preview.path) {
+      for (let i = 0; i < preview.path.length; i++) {
+        const [x, y] = preview.path[i], last = i === preview.path.length - 1, ok = i < preview.reach;
+        ctx.fillStyle = '#14161a'; ctx.beginPath(); ctx.arc(x * TS + 24, y * TS + 24, last ? 8 : 5, 0, 7); ctx.fill();
+        ctx.fillStyle = preview.attack && last ? '#ff6b5a' : ok ? '#f3cf5b' : '#8b9096';
+        ctx.beginPath(); ctx.arc(x * TS + 24, y * TS + 24, last ? 6 : 3, 0, 7); ctx.fill();
+      }
+    }
+    const mark = (x, y, col) => {
+      const p = 2 + Math.round(2 * Math.sin(performance.now() / 220)), px = x * TS - p, py = y * TS - p, w = TS + 2 * p, L = 12;
+      ctx.strokeStyle = '#14161a'; ctx.lineWidth = 5;
+      for (let pass = 0; pass < 2; pass++) {
+        ctx.beginPath();
+        ctx.moveTo(px, py + L); ctx.lineTo(px, py); ctx.lineTo(px + L, py); ctx.moveTo(px + w - L, py); ctx.lineTo(px + w, py); ctx.lineTo(px + w, py + L);
+        ctx.moveTo(px + w, py + w - L); ctx.lineTo(px + w, py + w); ctx.lineTo(px + w - L, py + w); ctx.moveTo(px + L, py + w); ctx.lineTo(px, py + w); ctx.lineTo(px, py + w - L);
+        ctx.stroke(); ctx.strokeStyle = col; ctx.lineWidth = 2;
+      }
+    };
+    const ss = sel && stackById(sel.stackId);
+    if (ss) mark(ss.x, ss.y, '#ffe27a'); else if (selCity) mark(selCity.x, selCity.y, '#e9e4d2');
+    ctx.restore();
+    drawMini();
+  }
+  const MINI_COL = { g: '#4f9a3c', f: '#2d6e2a', h: '#8aa64a', m: '#8d8a84', w: '#2a66ab', s: '#56703b' };
+  let miniBase = null;
+  function drawMini() {
+    const k = mini.width / MAP_W;
+    if (!miniBase) {
+      miniBase = mk(mini.width, mini.height); const m = miniBase.getContext('2d');
+      for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) { m.fillStyle = MAP.road[y][x] ? '#d2b077' : MINI_COL[MAP.t[y][x]]; m.fillRect(x * k, y * k, k, k); }
+    }
+    mctx.drawImage(miniBase, 0, 0);
+    for (const s of G.stacks) { if (MAP.cityGrid[idx(s.x, s.y)] >= 0) continue; mctx.fillStyle = fac(s.owner).color; mctx.fillRect(s.x * k + 1, s.y * k + 1, k - 2, k - 2); }
+    for (const c of G.cities) { mctx.fillStyle = '#14161a'; mctx.fillRect(c.x * k - 2, c.y * k - 2, k + 4, k + 4); mctx.fillStyle = fac(c.owner).color; mctx.fillRect(c.x * k - 1, c.y * k - 1, k + 2, k + 2); }
+    mctx.strokeStyle = '#fff'; mctx.lineWidth = 1; mctx.strokeRect(cam.x / TS * k + .5, cam.y / TS * k + .5, Math.min(MAP_W, vw / TS) * k, Math.min(MAP_H, vh / TS) * k);
+  }
+  function loop() { render(); requestAnimationFrame(loop); }
+
+  /* ---------- side panel ---------- */
+  function unitCard(u, owner, picked, clickable) {
+    const ab = U(u).abil.map(a => ABILITIES[a]).join(' · ');
+    const extra = u.hero ? `Lv ${u.hero.level} · mana ${u.hero.mana}/${uMaxMana(u)}` : '';
+    return `<button type="button" class="unit${picked ? ' on' : ''}" ${clickable ? `data-unit="${u.id}"` : 'disabled'} title="${esc(ab || 'No special ability')}">
+      <img src="${spriteURL(u.type, owner)}" alt=""><span class="un">${esc(uName(u))}${u.bless ? ' ✦' : ''}</span>
+      <span class="us">Str ${uStr(u)} · Hits ${uMaxHp(u)} · Move ${Math.max(0, Math.floor(u.mp))}/${uMaxMp(u)}</span>${extra ? `<span class="us">${extra}</span>` : ''}</button>`;
+  }
+  function panelHTML() {
+    let h = '';
+    const s = sel && stackById(sel.stackId);
+    if (s) {
+      h += `<h2>Army <span class="muted">${s.units.length}/${MAX_STACK}</span></h2><div class="units">`;
+      for (const u of s.units) h += unitCard(u, s.owner, sel.ids.has(u.id), true);
+      h += '</div><p class="hint">Click a unit to leave it behind. Click the map to march.</p>';
+      const hero = s.units.find(u => u.hero && sel.ids.has(u.id));
+      if (hero) {
+        h += `<h3>${esc(hero.hero.name)}</h3><p class="muted">Level ${hero.hero.level} ${U(hero).name} · ${hero.hero.xp}/${xpFor(hero.hero.level)} xp${heroLead(hero) ? ` · command +${heroLead(hero)}` : ''}</p>`;
+        if (hero.hero.items.length) h += '<p class="muted">' + hero.hero.items.map(k => { const it = ITEMS.find(i => i.key === k); return `${esc(it.name)} (${esc(it.desc)})`; }).join('<br>') + '</p>';
+        h += '<div class="row">';
+        for (const sp of SPELLS) h += `<button type="button" data-spell="${sp.key}" data-hero="${hero.id}" title="${esc(sp.desc)}" ${hero.hero.mana < sp.cost ? 'disabled' : ''}>${sp.name} <small>${sp.cost}</small></button>`;
+        h += '</div>';
+        const r = ruinAt(s.x, s.y);
+        if (r && !r.explored) h += `<div class="row"><button type="button" class="primary" data-search="${hero.id}">Search ${esc(r.name)}</button></div>`;
+      }
+    }
+    const c = selCity || (s && cityAt(s.x, s.y));
+    if (c) {
+      const mine = c.owner === HUMAN;
+      h += `<h2 style="color:${fac(c.owner).color}">${esc(c.name)}</h2><p class="muted">${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''} · level ${c.level} · walls +${wallBonus(c)} · ${cityIncome(c)} gold/turn</p>`;
+      if (mine) {
+        h += '<h3>Muster</h3><div class="prod">';
+        for (const t of c.prod) {
+          const d = UNITS[t], on = c.cur === t;
+          h += `<button type="button" class="unit${on ? ' on' : ''}" data-prod="${t}" data-city="${c.id}" title="${esc(d.abil.map(a => ABILITIES[a]).join(' · ') || 'No special ability')}">
+            <img src="${spriteURL(t, HUMAN)}" alt=""><span class="un">${d.name}</span><span class="us">Str ${d.str} · Hits ${d.hp} · Move ${d.mv}</span>
+            <span class="us">${d.cost} gold · ${on ? `ready in ${c.left}` : `${d.turns} turn${d.turns > 1 ? 's' : ''}`}</span></button>`;
+        }
+        h += '</div><div class="row">';
+        if (c.cur) h += `<button type="button" data-prod="" data-city="${c.id}">Stop muster</button>`;
+        if (c.level < 4) h += `<button type="button" data-upgrade="${c.id}" ${G.players[HUMAN].gold < upgradeCost(c) ? 'disabled' : ''}>Fortify <small>${upgradeCost(c)} gold</small></button>`;
+        h += '</div>';
+      } else {
+        const g = stackAt(c.x, c.y);
+        h += `<p class="muted">Garrison: ${g ? g.units.map(u => esc(uName(u))).join(', ') : 'none'}</p>`;
+      }
+    }
+    if (!h) h = '<p class="hint">Select one of your armies or cities. Right-click (or click) the map to march there. Drag to scroll.</p>';
+    return h;
+  }
+  function refresh() {
+    if (!G) return;
+    const pl = G.players[HUMAN], inc = income(HUMAN), cur = G.cur >= 0 ? FACTIONS[G.cur] : FACTIONS[HUMAN];
+    $('turnbar').innerHTML = `<span>Turn ${Math.max(1, G.turn)}</span><span class="who" style="color:${cur.color}">${G.cur === HUMAN && !busy ? 'Your move' : esc(cur.short) + ' is moving…'}</span>`;
+    $('treasury').innerHTML = `<span class="coin"></span><b>${pl.gold}</b> gold <span class="muted">(${inc.net >= 0 ? '+' : ''}${inc.net} per turn: ${inc.inc} income, ${inc.up} upkeep)</span>`;
+    $('panel').innerHTML = panelHTML();
+    $('log').innerHTML = G.log.slice(-9).reverse().map(l => `<li><span class="muted">T${Math.max(1, l.t)}</span> <span style="color:${l.owner >= 0 ? fac(l.owner).color : 'inherit'}">${esc(l.text)}</span></li>`).join('');
+    $('bEnd').disabled = $('bNext').disabled = busy || G.cur !== HUMAN;
+  }
+
+  /* ---------- selection and orders ---------- */
+  function selectStack(s) { sel = { stackId: s.id, ids: new Set(s.units.filter(u => u.mp >= 1).map(u => u.id)) }; if (!sel.ids.size) sel.ids = new Set(s.units.map(u => u.id)); selCity = null; preview = null; refresh(); }
+  function deselect() { sel = null; selCity = null; preview = null; refresh(); }
+  function selUnits() { const s = sel && stackById(sel.stackId); return s ? s.units.filter(u => sel.ids.has(u.id)) : []; }
+  function nextArmy() {
+    const list = G.stacks.filter(s => s.owner === HUMAN && s.units.some(u => u.mp >= 2)); if (!list.length) { deselect(); return; }
+    const i = sel ? list.findIndex(s => s.id === sel.stackId) : -1, s = list[(i + 1) % list.length];
+    selectStack(s); if (!onScreen(s.x, s.y)) centerOn(s.x, s.y); else centerOn(s.x, s.y);
+  }
+  function setHoverText(t) { $('hover').textContent = t; }
+  function describe(x, y) {
+    const parts = [], c = cityAt(x, y), r = ruinAt(x, y), s = stackAt(x, y);
+    parts.push(c ? `${c.name} (${fac(c.owner).short}, walls +${wallBonus(c)})` : TERRAIN_NAMES[MAP.t[y][x]] + (MAP.road[y][x] ? ' · road' : ''));
+    if (r) parts.push(r.name + (r.explored ? ' (searched)' : ' (unsearched ruin)'));
+    if (s) parts.push(`${fac(s.owner).short}: ` + s.units.map(u => `${uName(u)} ${uStr(u)}`).join(', '));
+    return parts.join(' — ');
+  }
+  function updatePreview() {
+    preview = null; if (!hover || !G) return;
+    let text = describe(hover.x, hover.y);
+    const s = sel && stackById(sel.stackId), units = selUnits();
+    if (s && units.length && !busy && !(s.x === hover.x && s.y === hover.y)) {
+      if (!sel.dm) sel.dm = dijkstraMap(units, HUMAN, s.x, s.y);
+      const path = pathTo(sel.dm, hover.x, hover.y);
+      if (path && path.length) {
+        const mp = units.map(u => u.mp); let reach = 0;
+        for (const [x, y] of path) { let ok = true; units.forEach((u, i) => { mp[i] -= stepCost(u, x, y); if (mp[i] < 0) ok = false; }); if (!ok) break; reach++; }
+        const t = stackAt(hover.x, hover.y), c = cityAt(hover.x, hover.y), enemy = (t && t.owner !== HUMAN) || (c && c.owner !== HUMAN);
+        preview = { path, reach, attack: enemy };
+        if (enemy && t) text += ` — odds of victory about ${Math.round(100 * estimateWin(units, t.units, hover.x, hover.y, c, 40))}%`;
+        if (reach < path.length) text += ' — more than one turn away';
+      } else text += ' — no route';
+    }
+    setHoverText(text);
+  }
+  async function orderMove(tx, ty) {
+    const s = stackById(sel.stackId), units = selUnits(); if (!s || !units.length) return;
+    const dm = dijkstraMap(units, HUMAN, s.x, s.y), path = pathTo(dm, tx, ty);
+    if (!path || !path.length) { setHoverText('No route there for this army.'); return; }
+    const ids = units.map(u => u.id); busy = true; preview = null; refresh();
+    const end = await moveGroup(s, ids, path, 55);
+    busy = false;
+    const left = end && end.owner === HUMAN ? end.units.filter(u => ids.includes(u.id)) : [];
+    sel = left.length ? { stackId: end.id, ids: new Set(left.map(u => u.id)) } : null; selCity = null;
+    if (G.over) { UI.gameOver(); return; }
+    refresh(); updatePreview();
+  }
+  function clickTile(x, y, right) {
+    if (!G || busy || G.cur !== HUMAN || !inb(x, y)) return;
+    const s = stackAt(x, y), c = cityAt(x, y), mine = s && s.owner === HUMAN;
+    if (sel && stackById(sel.stackId)) {
+      if (mine && s.id === sel.stackId) { selectStack(s); return; }
+      if (mine && !right) { selectStack(s); return; }
+      orderMove(x, y); return;
+    }
+    if (mine) selectStack(s);
+    else if (c) { sel = null; selCity = c; refresh(); }
+    else deselect();
+  }
+
+  /* ---------- modal helpers ---------- */
+  function modal(html) { $('mbox').innerHTML = html; $('modal').hidden = false; const b = $('mbox').querySelector('button.primary') || $('mbox').querySelector('button'); if (b) b.focus(); }
+  function closeModal() { $('modal').hidden = true; $('mbox').innerHTML = ''; }
+  const waitClick = sel => new Promise(res => { $('mbox').addEventListener('click', function h(e) { const b = e.target.closest(sel); if (!b) return; $('mbox').removeEventListener('click', h); res(b); }); });
+
+  UI.tick = async (delay, stack) => { if (stack && onScreen(stack.x, stack.y)) await sleep(delay); };
+  UI.refresh = refresh;
+  UI.onHumanTurn = () => {
+    busy = false; sel = null; selCity = null;
+    const first = G.stacks.find(s => s.owner === HUMAN && s.units.some(u => u.mp >= 2));
+    if (first) { selectStack(first); centerOn(first.x, first.y); } else refresh();
+  };
+  UI.askHero = async (cls, cost, home) => {
+    modal(`<h2>A hero seeks your banner</h2><div class="offer"><img src="${spriteURL(cls, HUMAN)}" alt=""><p>A wandering ${UNITS[cls].name.toLowerCase()} waits at the gates of ${esc(home.name)} and will swear to you for <b>${cost} gold</b>.<br><span class="muted">${cls === 'seer' ? 'Seers fight poorly but hold twice the mana.' : 'Champions are strong fighters with little mana.'}</span></p></div>
+      <div class="row"><button type="button" class="primary" data-a="y">Accept (${cost} gold)</button><button type="button" data-a="n">Send away</button></div>`);
+    const b = await waitClick('button[data-a]'); closeModal(); return b.dataset.a === 'y';
+  };
+  UI.showBattle = async (res, attOwner, defOwner, city, x, y) => {
+    centerOn(x, y);
+    const side = (units, owner) => units.map(u => `<div class="bu" id="bu${u.id}"><img src="${spriteURL(u.type, owner)}" alt=""><span class="un">${esc(uName(u))}</span><span class="us">Str ${res.str[u.id]}</span><span class="pips" data-max="${uMaxHp(u)}">${'<i></i>'.repeat(uMaxHp(u))}</span></div>`).join('');
+    modal(`<h2>Battle ${city ? 'for ' + esc(city.name) : 'in the ' + TERRAIN_NAMES[MAP.t[y][x]].toLowerCase()}</h2>
+      <div class="battle"><div><h3 style="color:${fac(attOwner).color}">${esc(fac(attOwner).name)} <span class="muted">attacks</span></h3><div class="bside">${side(res.A, attOwner)}</div></div>
+      <div><h3 style="color:${fac(defOwner).color}">${esc(fac(defOwner).name)} <span class="muted">defends</span></h3><div class="bside">${side(res.D, defOwner)}</div></div></div>
+      <p id="bres" class="bres">&nbsp;</p><div class="row"><button type="button" class="primary" data-a="go">Skip</button></div>`);
+    let skip = false, done = false; const btn = $('mbox').querySelector('button[data-a]');
+    const finished = new Promise(resolve => btn.addEventListener('click', () => { if (done) resolve(); else skip = true; }));
+    for (const e of res.events) {
+      if (e.k === 'duel') { $('mbox').querySelectorAll('.bu.act').forEach(n => n.classList.remove('act')); for (const id of [e.a, e.d]) { const n = $('bu' + id); if (n) n.classList.add('act'); } }
+      else if (e.k === 'hit') { const n = $('bu' + e.id); if (n) { const pips = n.querySelectorAll('.pips i'); pips.forEach((p, i) => p.classList.toggle('lost', i >= e.hp)); n.classList.add('hit'); setTimeout(() => n.classList.remove('hit'), 120); } }
+      else if (e.k === 'die') { const n = $('bu' + e.id); if (n) n.classList.add('dead'); }
+      if (!skip) await sleep(e.k === 'duel' ? 260 : 190);
+    }
+    const humanWon = (attOwner === HUMAN) === res.win;
+    $('bres').textContent = res.win ? `${fac(attOwner).short} carries the field.` : `${fac(defOwner).short} holds firm.`;
+    $('bres').className = 'bres ' + (humanWon ? 'good' : 'bad');
+    done = true; btn.textContent = 'Continue'; await finished; closeModal();
+  };
+  UI.gameOver = () => {
+    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save'); } catch (e) { /* ignore */ }
+    const won = G.winner === HUMAN;
+    modal(`<h2>${won ? 'The Vale is yours' : 'Your banner has fallen'}</h2><p>${won ? `After ${G.turn} turns every rival crown lies in the ash. ${esc(FACTIONS[HUMAN].name)} rules ${MAP_NAME}.` : `${esc(FACTIONS[HUMAN].name)} holds no city in ${MAP_NAME}. The war goes on without you.`}</p><div class="row"><button type="button" class="primary" data-a="new">New war</button></div>`);
+    waitClick('button[data-a]').then(() => title());
+  };
+
+  function title() {
+    busy = true;
+    const cards = FACTIONS.map((f, i) => `<button type="button" class="fcard" data-f="${i}" style="--fc:${f.color}"><img src="${spriteURL(f.heroCls, i)}" alt=""><img src="${spriteURL(f.special, i)}" alt=""><b>${esc(f.name)}</b><span>${esc(f.blurb)}</span><span class="muted">Seat: ${esc(f.capital)} · Hero: ${UNITS[f.heroCls].name} · ${UNITS[f.special].name}</span></button>`).join('');
+    modal(`<p class="eyebrow">A turn-based war for ${MAP_NAME}</p><h1 class="logo">Ashen Crowns</h1><p>Four crowns, nineteen cities, one valley. Raise armies, send heroes into the old ruins and take every rival seat. Choose your banner.</p>
+      <div class="fgrid">${cards}</div>${hasSave() ? '<div class="row"><button type="button" class="primary" data-f="load">Continue saved war</button></div>' : ''}`);
+    waitClick('button[data-f]').then(async b => {
+      closeModal();
+      if (b.dataset.f === 'load' && loadGame()) { HUMAN = G.players.findIndex(p => p.human); start(); UI.onHumanTurn(); return; }
+      HUMAN = +b.dataset.f || 0; newGame(HUMAN); start();
+      const cap = G.cities.find(c => c.capital === HUMAN); centerOn(cap.x, cap.y);
+      await runTurns();
+    });
+  }
+  function start() { terrain = paintTerrain(); miniBase = null; resize(); refresh(); }
+  function help() {
+    modal(`<h2>How to play</h2><ul class="help">
+      <li><b>Goal.</b> Capture every rival city. A crown with no cities is destroyed.</li>
+      <li><b>Armies.</b> Click an army to select it, then click (or right-click) a destination. Up to ${MAX_STACK} units share a tile. Click a unit in the panel to leave it behind. Right-click a friendly army to merge.</li>
+      <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross water and mountains; bridges carry everyone.</li>
+      <li><b>Battle.</b> Units duel one at a time, weakest first. The chance to land a hit is your strength against theirs. City walls, banners, heroes and terrain all add strength. Hover an enemy to see the odds.</li>
+      <li><b>Cities.</b> Each city musters one unit type at a time and repeats it while you can pay. Fortify a city for more gold and stronger walls.</li>
+      <li><b>Heroes.</b> Heroes gain experience, cast spells with mana and can search ruins (golden spark) for gold, relics or allies. It can kill them.</li>
+      <li><b>Keys.</b> N next army · E end turn · Esc deselect · arrows scroll.</li></ul>
+      <div class="row"><button type="button" class="primary" data-a="ok">Back to the war</button></div>`);
+    waitClick('button[data-a]').then(closeModal);
+  }
+
+  /* ---------- events ---------- */
+  let down = null;
+  const tileOf = e => { const r = cv.getBoundingClientRect(); return { x: Math.floor((e.clientX - r.left + cam.x) / TS), y: Math.floor((e.clientY - r.top + cam.y) / TS) }; };
+  cv.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, pan: false, btn: e.button }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => {
+    if (down) { const dx = e.clientX - down.x, dy = e.clientY - down.y; if (down.pan || Math.hypot(dx, dy) > 7) { down.pan = true; cam.x = down.cx - dx; cam.y = down.cy - dy; clampCam(); return; } }
+    if (!G) return; const t = tileOf(e); if (!inb(t.x, t.y)) return;
+    if (!hover || hover.x !== t.x || hover.y !== t.y) { hover = t; updatePreview(); }
+  });
+  cv.addEventListener('pointerup', e => { const d = down; down = null; if (!d || d.pan) return; const t = tileOf(e); clickTile(t.x, t.y, d.btn === 2); });
+  cv.addEventListener('pointercancel', () => { down = null; });
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('wheel', e => { e.preventDefault(); cam.x += e.deltaX; cam.y += e.deltaY; clampCam(); }, { passive: false });
+  mini.addEventListener('pointerdown', e => { const r = mini.getBoundingClientRect(); centerOn(Math.floor((e.clientX - r.left) / r.width * MAP_W), Math.floor((e.clientY - r.top) / r.height * MAP_H)); });
+  window.addEventListener('resize', resize);
+  window.addEventListener('keydown', e => {
+    if (!$('modal').hidden || !G) return;
+    const k = e.key.toLowerCase();
+    if (k === 'n' && !busy) nextArmy(); else if (k === 'e' && !busy) endTurn(); else if (k === 'escape') deselect();
+    else if (k.startsWith('arrow')) { e.preventDefault(); cam.x += k === 'arrowleft' ? -TS * 2 : k === 'arrowright' ? TS * 2 : 0; cam.y += k === 'arrowup' ? -TS * 2 : k === 'arrowdown' ? TS * 2 : 0; clampCam(); }
+  });
+  async function endTurn() { if (busy || G.cur !== HUMAN) return; busy = true; sel = null; selCity = null; preview = null; refresh(); await runTurns(); }
+  $('bEnd').addEventListener('click', endTurn);
+  $('bNext').addEventListener('click', () => { if (!busy) nextArmy(); });
+  $('bHelp').addEventListener('click', help);
+  $('panel').addEventListener('click', e => {
+    if (busy || !G) return;
+    const b = e.target.closest('button'); if (!b) return; const d = b.dataset, s = sel && stackById(sel.stackId);
+    if (d.unit && s) { const id = +d.unit; if (sel.ids.has(id)) sel.ids.delete(id); else sel.ids.add(id); sel.dm = null; }
+    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h && !castSpell(s, h, d.spell)) setHoverText('That spell cannot be cast now.'); if (d.spell === 'pack') selectStack(s); sel.dm = null; }
+    else if (d.search && s) {
+      const h = s.units.find(u => u.id === +d.search), r = h && searchRuin(s, h);
+      if (r) { modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p><div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }
+      const again = stackById(s.id); if (again) selectStack(again); else sel = null;
+    }
+    else if ('prod' in d) { const c = G.cities[+d.city]; if (!setProduction(c, d.prod || null)) setHoverText(`Not enough gold for ${UNITS[d.prod].name}.`); }
+    else if (d.upgrade) upgradeCity(G.cities[+d.upgrade]);
+    refresh();
+  });
+
+  /* ---------- boot ---------- */
+  resize(); loop();
+  if (location.search.includes('auto')) {
+    AUTO = true; newGame(-1); HUMAN = 0; start(); window.__done = runTurns().then(() => ({ turn: G.turn, winner: G.winner }));
+  } else title();
+  window.__dbg = { get G() { return G; }, centerOn, screen: (x, y) => { const r = cv.getBoundingClientRect(); return [r.left + x * TS + TS / 2 - cam.x, r.top + y * TS + TS / 2 - cam.y]; } };
+})();
+</script>
+</body></html>
