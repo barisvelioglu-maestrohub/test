@@ -3,6 +3,10 @@
 
 const INK = '#2b211a', WOOD = '#8a5a2b', STEEL = '#b9bec6', MAIL = '#8d9299', SKIN = '#e8bd95', BONE = '#f2efe6', GOLD = '#e8c04a';
 const spriteCache = {};
+function tone(hex, k) {
+  if (hex[0] !== '#') return hex; const n = parseInt(hex.slice(1), 16), f = v => Math.max(0, Math.min(255, Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k))));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
 function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 /* Finishing pass for drawn art: pull the colours back and light the piece from the upper left. */
 function finish(c, sat = 0.7) {
@@ -17,15 +21,56 @@ function finish(c, sat = 0.7) {
 /* Small drawing kit: every figure is laid out in a 64 x 64 box with inked outlines. */
 function pen(x) {
   const g = { x };
-  g.P = (pts, fill, close = true) => { x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); if (close) x.closePath(); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
-  g.C = (cx, cy, r, fill) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
-  g.E = (cx, cy, rx, ry, fill, stroke = true) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fillStyle = fill; x.fill(); if (stroke) x.stroke(); };
+  const vol = (fill, x0, x1) => (typeof fill === 'string' && fill.length === 7 && fill[0] === '#' ? g.grad(x0, x1, fill) : fill);
+  g.P = (pts, fill, close = true) => { if (fill) { const xs = pts.map(q => q[0]); fill = vol(fill, Math.min(...xs), Math.max(...xs)); } x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); if (close) x.closePath(); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
+  g.C = (cx, cy, r, fill) => { if (fill) fill = vol(fill, cx - r, cx + r); x.beginPath(); x.arc(cx, cy, r, 0, 7); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
+  g.E = (cx, cy, rx, ry, fill, stroke = true) => { fill = vol(fill, cx - rx, cx + rx); x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fillStyle = fill; x.fill(); if (stroke) x.stroke(); };
   g.L = (x1, y1, x2, y2, col, w = 2.5) => { x.save(); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.lineWidth = w + 1.6; x.strokeStyle = INK; x.stroke(); x.lineWidth = w; x.strokeStyle = col; x.stroke(); x.restore(); };
   g.dot = (cx, cy, r, col) => { x.fillStyle = col; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); };
   g.shade = pts => { x.save(); x.globalAlpha = 0.24; x.fillStyle = '#000'; x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.fill(); x.restore(); };
   g.arm = (x1, y1, x2, y2, col, w = 5) => { g.L(x1, y1, x2, y2, col, w); g.C(x2, y2, 2.6, SKIN); };
-  g.cap = (cx, cy, r, col) => { x.beginPath(); x.arc(cx, cy, r, Math.PI, 0); x.closePath(); x.fillStyle = col; x.fill(); x.stroke(); };
+  g.cap = (cx, cy, r, col) => { x.beginPath(); x.arc(cx, cy, r, Math.PI, 0); x.closePath(); x.fillStyle = vol(col, cx - r, cx + r); x.fill(); x.stroke(); };
   g.eyes = (cx, cy) => { x.fillStyle = 'rgba(43,33,26,.8)'; x.fillRect(cx - 2.9, cy + 0.4, 1.2, 1.3); x.fillRect(cx + 1.7, cy + 0.4, 1.2, 1.3); };
+  g.grad = (x0, x1, col) => { const q = x.createLinearGradient(x0, 0, x1, 0); q.addColorStop(0, tone(col, 0.3)); q.addColorStop(0.5, col); q.addColorStop(1, tone(col, -0.4)); return q; };
+  g.limb = (x1, y1, x2, y2, w1, w2, col) => {
+    const dx = x2 - x1, dy = y2 - y1, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+    g.P([[x1 + nx * w1 / 2, y1 + ny * w1 / 2], [x2 + nx * w2 / 2, y2 + ny * w2 / 2], [x2 - nx * w2 / 2, y2 - ny * w2 / 2], [x1 - nx * w1 / 2, y1 - ny * w1 / 2]], g.grad(Math.min(x1, x2) - w1 / 2, Math.max(x1, x2) + w1 / 2, col));
+  };
+  g.mail = pts => { x.save(); x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.closePath(); x.clip(); x.fillStyle = 'rgba(24,24,30,.42)';
+    for (let r = 0; r < 64; r += 1.8) for (let q = (r / 1.8) % 2 ? 0.9 : 0; q < 64; q += 1.8) x.fillRect(q, r, 0.8, 0.8); x.restore(); };
+  /* A standing figure with human proportions. Hooks: back (behind the body), head (headgear), mid (held behind the arms), front. */
+  g.fig = o => {
+    const cx = o.cx ?? 32, st = o.stout ? 1 : 0, hy = (o.hy ?? 11) + st * 5, sy = hy + 7, sw = o.sw ?? (st ? 9.5 : 7), wy = sy + (st ? 14 : 15), hem = o.hem ?? wy + 7, foot = 58;
+    const skin = o.skin || SKIN, sl = o.sleeve || o.body, boots = o.boots || '#33261a';
+    const aL = o.armL || [[cx - sw - 2.2, sy + 9], [cx - sw - 1.4, sy + 17]], aR = o.armR || [[cx + sw + 2.2, sy + 9], [cx + sw + 1.4, sy + 17]];
+    const arm = (shx, a) => { g.limb(shx, sy + 1.8, a[0][0], a[0][1], 4.8, 4, sl); g.limb(a[0][0], a[0][1], a[1][0], a[1][1], 4, 3.2, o.fore || sl); g.C(a[1][0], a[1][1], 1.9, o.glove || skin); };
+    if (o.cape) g.P([[cx - sw - 1, sy + 0.5], [cx + sw + 1, sy + 0.5], [cx + sw + 5.5, foot - 3], [cx - sw - 5.5, foot - 3]], g.grad(cx - sw - 5, cx + sw + 5, o.cape));
+    if (o.back) o.back(cx, hy);
+    if (!o.robe) for (const d of [-1, 1]) {
+      g.limb(cx + d * 3, wy + 2, cx + d * 4, foot - 8, 5.4, 4.2, o.legs); g.limb(cx + d * 4, foot - 9, cx + d * 4.2, foot - 1, 4.4, 4, boots);
+      g.P([[cx + d * 4.2 - 2.6, foot - 1.6], [cx + d * 4.2 + 2.6, foot - 1.6], [cx + d * 4.2 + 2.6 + d * 2, foot + 1.2], [cx + d * 4.2 - 2.6 + (d < 0 ? d * 2 : 0), foot + 1.2]], boots);
+    }
+    const flare = o.robe ? sw + 3.5 : sw - 0.3, body = [[cx - sw, sy], [cx + sw, sy], [cx + sw - 1.6, wy], [cx + flare, hem], [cx - flare, hem], [cx - sw + 1.6, wy]];
+    g.P(body, g.grad(cx - sw - 1, cx + sw + 1, o.body)); if (o.mailTex) { g.mail(body); g.P(body, null); }
+    if (o.tabard) g.P([[cx - 3.6, sy], [cx + 3.6, sy], [cx + 4.2, hem + (o.tabLen || 0)], [cx - 4.2, hem + (o.tabLen || 0)]], g.grad(cx - 5, cx + 5, o.tabard));
+    if (o.belt) { x.fillStyle = o.belt; x.fillRect(cx - sw + 1.5, wy - 1.2, 2 * sw - 3, 2.4); x.fillStyle = GOLD; x.fillRect(cx - 1.2, wy - 1.2, 2.4, 2.4); }
+    x.fillStyle = tone(skin, -0.25); x.fillRect(cx - 1.8, sy - 2.6, 3.6, 3);
+    const hg = x.createRadialGradient(cx - 1.5, hy - 1.5, 0.5, cx, hy, 4.6); hg.addColorStop(0, tone(skin, 0.2)); hg.addColorStop(1, tone(skin, -0.22));
+    g.C(cx, hy, 4.4, hg); x.fillStyle = 'rgba(43,33,26,.85)'; x.fillRect(cx - 2.2, hy + 0.1, 1, 1); x.fillRect(cx + 1.2, hy + 0.1, 1, 1);
+    if (o.head) o.head(cx, hy);
+    if (o.mid) o.mid(cx, hy);
+    arm(cx - sw + 0.6, aL); arm(cx + sw - 0.6, aR);
+    if (o.front) o.front(cx, hy);
+  };
+  g.kettle = (cx, hy) => { g.cap(cx, hy - 1, 4.9, g.grad(cx - 5, cx + 5, STEEL)); g.P([[cx - 7.2, hy - 1.2], [cx + 7.2, hy - 1.2], [cx + 6, hy + 0.8], [cx - 6, hy + 0.8]], g.grad(cx - 7, cx + 7, STEEL)); };
+  g.nasal = (cx, hy) => { g.cap(cx, hy - 0.2, 4.9, g.grad(cx - 5, cx + 5, STEEL)); x.fillStyle = tone(STEEL, -0.3); x.fillRect(cx - 0.8, hy - 0.4, 1.6, 4.2); };
+  g.hood = (cx, hy, col) => g.P([[cx - 5.6, hy + 4.4], [cx - 5.2, hy - 3], [cx, hy - 6.6], [cx + 5.2, hy - 3], [cx + 5.6, hy + 4.4], [cx + 3.3, hy - 1.4], [cx, hy - 3], [cx - 3.3, hy - 1.4]], g.grad(cx - 6, cx + 6, col));
+  g.shield = (pts, col) => { const xs = pts.map(q => q[0]); g.P(pts, g.grad(Math.min(...xs), Math.max(...xs), col)); };
+  g.bow = (bx, dir, col, hand) => {
+    x.save(); x.beginPath(); x.moveTo(bx, 7); x.quadraticCurveTo(bx + dir * 10, 26, bx, 45); x.lineWidth = 3.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = 2; x.strokeStyle = col; x.stroke();
+    x.lineWidth = 0.7; x.strokeStyle = '#e9e2cc'; x.beginPath(); x.moveTo(bx, 7); x.lineTo(hand[0], hand[1]); x.lineTo(bx, 45); x.stroke(); x.restore();
+    g.L(hand[0], hand[1], bx + dir * 9, hand[1], '#c9b48a', 0.9); g.P([[bx + dir * 9, hand[1] - 1.6], [bx + dir * 12.5, hand[1]], [bx + dir * 9, hand[1] + 1.6]], STEEL);
+  };
   g.man = o => {
     const cx = o.cx ?? 32, w = o.w ?? 9, top = o.top ?? 25, hip = o.hip ?? 44, foot = 58;
     g.P([[cx - w + 2, hip - 1], [cx - 1, hip - 1], [cx - 2, foot], [cx - w, foot]], o.legs);
@@ -43,62 +88,61 @@ function pen(x) {
 
 const DRAW = {
   levy(g, f) {
-    g.L(48, 8, 48, 59, WOOD); g.P([[48, 1], [51.5, 10], [44.5, 10]], STEEL);
-    g.man({ body: f.color, legs: '#6b4a2a', belt: '#3a2a1c' });
-    g.cap(32, 16, 7, '#5a3b1e'); g.arm(41, 29, 48, 36, f.color); g.arm(23, 29, 20, 41, f.color);
+    g.fig({ body: f.color, legs: '#6a5536', belt: '#33261a', hem: 41, armR: [[43, 27], [45.5, 31]],
+      head: (cx, hy) => g.cap(cx, hy - 0.8, 4.7, '#4a3018'),
+      mid: () => { g.L(45.5, 7, 45.5, 59, WOOD, 1.7); g.P([[45.5, 0], [48, 8], [43, 8]], g.grad(43, 48, STEEL)); },
+      front: () => { g.shield([[14, 24], [24, 22], [26, 33], [20, 39], [13, 34]], '#7a5632'); g.C(19.5, 30, 2, STEEL); } });
   },
   pike(g, f) {
-    g.L(14, 9, 14, 60, WOOD); g.P([[14, 0], [17.5, 10], [10.5, 10]], STEEL);
-    g.man({ body: MAIL, legs: '#55504a', tabard: f.color });
-    g.arm(23, 29, 14, 37, MAIL);
-    g.P([[35, 28], [53, 28], [53, 40], [44, 53], [35, 40]], f.color); g.shade([[44, 29], [52, 29], [52, 40], [44, 51]]);
-    g.L(38.5, 33, 44, 39, BONE, 2); g.L(44, 39, 49.5, 33, BONE, 2);
-    g.cap(32, 16.5, 7.5, STEEL); g.x.fillStyle = INK; g.x.fillRect(31, 15, 2, 6);
+    g.fig({ body: MAIL, mailTex: true, tabard: f.color, legs: '#4f4a44', hem: 41, belt: '#33261a', armL: [[22, 26], [18.5, 30]],
+      head: (cx, hy) => g.kettle(cx, hy),
+      mid: () => { g.L(18.5, 9, 18.5, 59, WOOD, 1.7); g.P([[18.5, 0], [21, 10], [16, 10]], g.grad(16, 21, STEEL)); },
+      front: () => { g.shield([[35, 20], [50, 20], [50, 31], [42.5, 44], [35, 31]], f.color); g.L(38.5, 25, 42.5, 30, BONE, 1.3); g.L(42.5, 30, 46.5, 25, BONE, 1.3); } });
   },
   archer(g, f) {
-    g.P([[19, 21], [25, 21], [24, 41], [20, 41]], '#7a4e2a'); g.L(21, 21, 20, 15, BONE, 1.5); g.L(23.5, 21, 24, 14, BONE, 1.5);
-    g.man({ body: f.color, legs: '#4a5a34', belt: '#3a2a1c' });
-    const x = g.x; x.save(); x.beginPath(); x.arc(36, 34, 21, -1.05, 1.05); x.lineWidth = 5.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = 3; x.strokeStyle = WOOD; x.stroke(); x.restore();
-    g.L(46.5, 16, 46.5, 52, BONE, 1); g.arm(41, 29, 56, 34, f.color); g.arm(23, 29, 31, 37, f.color);
-    g.cap(32, 16, 7, '#3f7a36'); g.P([[24, 16], [40, 16], [43, 18], [23, 18]], '#3f7a36'); g.L(36, 12, 43, 4, GOLD, 2);
+    g.fig({ body: f.color, legs: '#4a4a30', belt: '#33261a', hem: 40, armR: [[43, 23], [48, 24]], armL: [[25, 25], [38, 24]],
+      back: () => { g.P([[21, 14], [25.5, 14], [24.5, 31], [21.8, 31]], g.grad(21, 26, '#6b4424')); g.L(22.3, 14, 21.5, 9, BONE, 0.9); g.L(24.5, 14, 25.2, 8.5, BONE, 0.9); },
+      head: (cx, hy) => { g.cap(cx, hy - 0.9, 4.8, '#3f5f34'); g.P([[cx - 5.5, hy - 1], [cx + 6.5, hy - 1], [cx + 8, hy + 0.4], [cx - 5, hy + 0.4]], '#3f5f34'); g.L(cx + 2, hy - 4, cx + 6.5, hy - 9, GOLD, 1.1); },
+      mid: () => g.bow(49, 1, WOOD, [38, 24]) });
   },
   warden(g, f) {
-    g.P([[20, 24], [44, 24], [49, 55], [15, 55]], '#2f5d34'); g.shade([[34, 25], [44, 25], [48, 54], [34, 54]]);
-    g.man({ body: f.color, legs: '#3d3a2a', w: 8, belt: '#2a2118' });
-    const x = g.x; x.save(); x.beginPath(); x.arc(33, 34, 22, -1.1, 1.1); x.lineWidth = 5.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = 3; x.strokeStyle = '#3aa39a'; x.stroke(); x.restore();
-    g.L(43, 15, 43, 53, BONE, 1); g.arm(40, 29, 55, 34, f.color); g.arm(24, 29, 31, 37, f.color);
-    g.P([[23.5, 21], [25, 12], [32, 6], [39, 12], [40.5, 21], [37, 14], [32, 11.5], [27, 14]], '#2f5d34');
+    g.fig({ cape: '#2d4a30', body: f.color, legs: '#3d3a2a', belt: '#2a2118', hem: 40, sw: 6.5, armL: [[21, 23], [16, 24]], armR: [[39, 25], [26, 24]],
+      head: (cx, hy) => g.hood(cx, hy, '#2d4a30'),
+      mid: () => g.bow(15, -1, '#3aa39a', [26, 24]) });
   },
   reaver(g, f) {
-    g.L(51, 12, 51, 59, WOOD, 3); g.P([[51, 10], [61, 6], [63, 20], [51, 25]], STEEL); g.shade([[55, 15], [62, 19], [52, 24]]);
-    g.man({ body: MAIL, legs: '#4d3a2a', w: 12, top: 31, hip: 46, tabard: f.color, belt: '#2a2118' });
-    g.P([[24.5, 25], [39.5, 25], [37, 37], [32, 41], [27, 37]], '#d9732a');
-    g.P([[26, 16], [19, 9], [24.5, 18]], BONE); g.P([[38, 16], [45, 9], [39.5, 18]], BONE);
-    g.cap(32, 22, 7.5, STEEL); g.arm(44, 35, 51, 41, MAIL, 6); g.arm(20, 35, 17, 46, MAIL, 6);
+    g.fig({ stout: true, body: MAIL, mailTex: true, tabard: f.color, legs: '#4a3828', belt: '#2a2118', armR: [[45, 33], [43, 39]], armL: [[19, 34], [27, 42]],
+      head: (cx, hy) => {
+        g.P([[cx - 3.5, hy - 3], [cx - 9, hy - 9], [cx - 4.6, hy - 0.5]], BONE); g.P([[cx + 3.5, hy - 3], [cx + 9, hy - 9], [cx + 4.6, hy - 0.5]], BONE); g.nasal(cx, hy);
+        g.P([[cx - 4.2, hy + 1.6], [cx + 4.2, hy + 1.6], [cx + 3.2, hy + 9], [cx, hy + 12.5], [cx - 3.2, hy + 9]], g.grad(cx - 4, cx + 4, '#c9662a')); g.L(cx, hy + 6, cx, hy + 11, '#8a4218', 0.8);
+      },
+      mid: () => { g.L(24, 46, 51, 13, WOOD, 2.2); g.P([[47, 9], [57, 4], [61, 15], [53, 20]], g.grad(47, 61, STEEL)); g.P([[49, 16], [44, 22], [42, 14]], g.grad(42, 49, STEEL)); } });
   },
   bearer(g, f) {
-    g.L(25, 2, 25, 60, WOOD); g.P([[25, 3], [3, 3], [9, 12], [3, 21], [25, 21]], f.color); g.shade([[25, 12], [8, 12], [3, 21], [25, 21]]); g.C(16, 12, 4, GOLD);
-    g.man({ cx: 41, body: MAIL, legs: '#55504a', tabard: f.color });
-    g.cap(41, 16.5, 7.5, STEEL); g.arm(32, 29, 25, 37, MAIL); g.arm(50, 29, 53, 41, MAIL);
+    g.L(22, 3, 22, 60, WOOD, 1.8); g.C(22, 2.2, 1.8, GOLD);
+    g.P([[22, 4], [2.5, 4], [8, 11.5], [2.5, 19], [22, 19]], g.grad(2, 22, f.color)); g.C(14, 11.5, 3.4, GOLD); g.L(22, 19.2, 3, 19.2, f.dark, 0.9);
+    g.fig({ cx: 38, body: MAIL, mailTex: true, tabard: f.color, legs: '#4f4a44', belt: '#33261a', hem: 41, armL: [[26.5, 27], [22, 30]],
+      head: (cx, hy) => g.nasal(cx, hy) });
   },
   champion(g, f) {
-    g.P([[21, 26], [43, 26], [48, 56], [16, 56]], f.dark);
-    g.L(51, 5, 51, 33, '#e6eaef', 3); g.L(46.5, 32, 55.5, 32, GOLD, 2.5);
-    g.man({ body: STEEL, legs: MAIL, tabard: f.color }); g.C(32, 34, 2.4, GOLD);
-    g.C(32, 18, 7.2, '#c9ced6'); g.x.fillStyle = INK; g.x.fillRect(26.5, 16.5, 11, 2.4); g.x.fillRect(31, 18, 2, 5);
-    g.P([[25.5, 12.5], [27, 5.5], [30, 10.5], [32, 4], [34, 10.5], [37, 5.5], [38.5, 12.5]], GOLD);
-    g.arm(41, 29, 51, 36, STEEL);
-    g.P([[9, 28], [27, 28], [27, 40], [18, 52], [9, 40]], f.color); g.shade([[18, 29], [26, 29], [26, 40], [18, 50]]); g.C(18, 37, 3, GOLD);
+    g.fig({ cape: f.color, body: STEEL, sleeve: STEEL, legs: MAIL, boots: '#5b6068', glove: MAIL, tabard: f.color, tabLen: 3, hem: 39, armR: [[45, 24], [47, 18]], armL: [[22, 27], [21, 31]],
+      head: (cx, hy) => {
+        g.P([[cx - 4.8, hy - 5], [cx + 4.8, hy - 5], [cx + 4.3, hy + 4.8], [cx - 4.3, hy + 4.8]], g.grad(cx - 5, cx + 5, '#c9ced6'));
+        g.x.fillStyle = INK; g.x.fillRect(cx - 3.5, hy - 1, 7, 1.4); g.x.fillRect(cx - 0.6, hy + 0.4, 1.2, 3.4);
+        g.P([[cx - 4.8, hy - 5], [cx - 4.2, hy - 9.5], [cx - 2, hy - 6.6], [cx, hy - 10.5], [cx + 2, hy - 6.6], [cx + 4.2, hy - 9.5], [cx + 4.8, hy - 5]], GOLD);
+      },
+      mid: () => { g.L(47.2, 17, 48.8, 0.5, '#e6eaef', 2); g.L(44, 17.8, 50.6, 16.6, GOLD, 1.5); g.C(25, 19.5, 3, g.grad(22, 28, STEEL)); g.C(39, 19.5, 3, g.grad(36, 42, STEEL)); },
+      front: () => { g.shield([[12, 21], [27, 21], [27, 31], [19.5, 42], [12, 31]], f.color); g.L(19.5, 23, 19.5, 38, GOLD, 1.3); g.L(14.5, 28, 24.5, 28, GOLD, 1.3); } });
   },
   seer(g, f) {
-    g.L(13, 12, 13, 60, WOOD);
-    const x = g.x, gl = x.createRadialGradient(13, 7, 0, 13, 7, 12); gl.addColorStop(0, 'rgba(150,255,240,.9)'); gl.addColorStop(1, 'rgba(150,255,240,0)'); x.fillStyle = gl; x.fillRect(1, -5, 24, 24);
-    g.C(13, 7, 4.5, '#8ff0e2');
-    g.P([[23, 25], [41, 25], [48, 59], [16, 59]], '#6f4aa8'); g.P([[28.5, 25], [35.5, 25], [37, 59], [27, 59]], f.color); g.shade([[35, 26], [41, 26], [47, 58], [36, 58]]);
-    g.arm(24, 29, 13, 37, '#6f4aa8'); g.arm(40, 29, 45, 41, '#6f4aa8');
-    g.C(32, 18, 6.5, SKIN); g.eyes(32, 16.5);
-    g.P([[26.5, 21], [37.5, 21], [36, 33], [32, 37], [28, 33]], BONE);
-    g.P([[21, 15], [43, 15], [37, 11.5], [31, -1], [27, 11.5]], '#6f4aa8'); g.L(27.5, 12.5, 36.5, 12.5, f.color, 2);
+    const x = g.x; g.L(17.5, 10, 17.5, 60, WOOD, 1.7);
+    const gl = x.createRadialGradient(17.5, 6, 0, 17.5, 6, 11); gl.addColorStop(0, 'rgba(150,255,240,.9)'); gl.addColorStop(1, 'rgba(150,255,240,0)'); x.fillStyle = gl; x.fillRect(6, -5, 23, 23);
+    g.C(17.5, 6, 3.4, '#8ff0e2');
+    g.fig({ robe: true, hem: 58, body: '#5d4d7c', tabard: f.color, armL: [[22, 27], [17.5, 31]], armR: [[43, 27], [44, 35]],
+      head: (cx, hy) => {
+        g.P([[cx - 3.6, hy + 1.8], [cx + 3.6, hy + 1.8], [cx + 3, hy + 11], [cx, hy + 16], [cx - 3, hy + 11]], g.grad(cx - 4, cx + 4, BONE));
+        g.P([[cx - 7.5, hy - 2], [cx + 7.5, hy - 2], [cx + 3, hy - 4.6], [cx - 0.5, hy - 16], [cx - 3.4, hy - 4.6]], g.grad(cx - 7, cx + 7, '#5d4d7c')); g.L(cx - 3.2, hy - 4, cx + 2.8, hy - 4, f.color, 1.3);
+      } });
   },
   rider(g, f) {
     g.P([[13, 35], [5, 40], [7, 55], [12, 46]], '#3a2416');
@@ -137,7 +181,7 @@ const DRAW = {
     g.P([[19, 43], [45, 43], [41, 53], [32, 49], [23, 53]], f.color);
     g.arm(17, 29, 10, 47, '#5aa845', 7); g.arm(47, 29, 52, 40, '#5aa845', 7);
     g.P([[24, 14], [18, 10], [23, 19]], '#5aa845'); g.P([[40, 14], [46, 10], [41, 19]], '#5aa845');
-    g.C(32, 16, 8.5, '#5aa845'); g.L(27, 13, 37, 13, '#3d7a34', 1.6); g.dot(28.8, 15.5, 1.5, '#e0412e'); g.dot(35.2, 15.5, 1.5, '#e0412e');
+    g.C(32, 16, 8.5, '#5aa845'); g.L(27, 13, 37, 13, '#3d7a34', 1.6); g.dot(28.8, 15.5, 1.1, '#e8c04a'); g.dot(35.2, 15.5, 1.1, '#e8c04a');
     g.P([[27, 22], [26, 15.5], [29.5, 21]], BONE); g.P([[37, 22], [38, 15.5], [34.5, 21]], BONE);
   },
   drake(g, f) {
