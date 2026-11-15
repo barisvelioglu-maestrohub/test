@@ -145,19 +145,8 @@
       h += `<h2 style="color:${fac(c.owner).color}">${esc(c.name)}</h2><p class="muted">${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''}<br>${TIER_NAMES[c.level]} (tier ${c.level} of 3) · walls +${wallBonus(c)} · ${cityIncome(c)} gold/turn</p>`;
       const gar = cityUnits(c);
       h += `<h3>Garrison <span class="muted">${gar.length}</span></h3>` + (gar.length ? '<div class="tiles">' + gar.map(u => unitCard(u, c.owner, false, false)).join('') + '</div>' : '<p class="muted">Undefended.</p>');
-      if (mine) {
-        h += '<h3>Muster</h3><div class="prod">';
-        for (const t of c.prod) {
-          const d = UNITS[t], on = c.cur === t;
-          h += `<button type="button" class="unit${on ? ' on' : ''}" data-prod="${t}" data-city="${c.id}" title="${esc(d.abil.map(a => ABILITIES[a]).join(' · ') || 'No special ability')}">
-            <img src="${spriteURL(t, HUMAN)}" alt=""><span class="un">${d.name}</span><span class="us">Str ${d.str} · Hits ${d.hp} · Move ${d.mv}</span>
-            <span class="us">${d.cost} gold · ${on ? `ready in ${c.left}` : `${d.turns} turn${d.turns > 1 ? 's' : ''}`}</span></button>`;
-        }
-        h += '</div><div class="row">';
-        if (c.cur) h += `<button type="button" data-prod="" data-city="${c.id}">Stop muster</button>`;
-        if (c.level < 3) h += `<button type="button" data-upgrade="${c.id}" ${G.players[HUMAN].gold < upgradeCost(c) ? 'disabled' : ''}>Build ${TIER_NAMES[c.level + 1].toLowerCase()} <small>${upgradeCost(c)} gold</small></button>`;
-        h += '</div>';
-      }
+      if (mine) h += `<p class="muted">${c.cur ? `Mustering ${UNITS[c.cur].name}, ready in ${c.left} turn${c.left === 1 ? '' : 's'}.` : 'Nothing is being mustered.'}</p>`;
+      h += `<div class="row"><button type="button" class="${mine && !c.cur ? 'primary' : ''}" data-opencity="${c.id}">${mine ? 'Manage city' : 'View city'}</button></div>`;
     }
     if (!h) h = '<p class="hint">Select one of your armies or cities. Right-click (or click) the map to march there. Drag to scroll.</p>';
     return h;
@@ -225,12 +214,12 @@
     if (!G || busy || G.cur !== HUMAN || !inb(x, y)) return;
     const s = stackAt(x, y), c = cityAt(x, y), mine = s && s.owner === HUMAN;
     if (sel && stackById(sel.stackId)) {
-      if (mine && s.id === sel.stackId) { selectStack(s); return; }
+      if (mine && s.id === sel.stackId) { if (c) cityDialog(c); else selectStack(s); return; }
       if (mine && !right) { selectStack(s); return; }
       orderMove(x, y); return;
     }
     if (mine) selectStack(s);
-    else if (c) { sel = null; selCity = c; refresh(); }
+    else if (c) { sel = null; selCity = c; refresh(); cityDialog(c); }
     else deselect();
   }
 
@@ -239,6 +228,44 @@
   function closeModal() { $('modal').hidden = true; $('mbox').innerHTML = ''; }
   const waitClick = sel => new Promise(res => { $('mbox').addEventListener('click', function h(e) { const b = e.target.closest(sel); if (!b) return; $('mbox').removeEventListener('click', h); res(b); }); });
 
+  /* City window: what the city is, who holds it, what it can muster and what can be done there. */
+  let dlgOpen = false;
+  async function cityDialog(c) {
+    if (dlgOpen || !$('modal').hidden) return; dlgOpen = true;
+    let pick = c.cur || c.prod[0], note = '';
+    const stat = (label, val) => `<div class="stat"><span>${label}</span><b>${val}</b></div>`;
+    for (;;) {
+      const mine = c.owner === HUMAN && G.cur === HUMAN && !busy, d = UNITS[pick], gar = cityUnits(c), gold = G.players[HUMAN].gold;
+      const refund = c.cur && c.left === UNITS[c.cur].turns ? UNITS[c.cur].cost : 0; // an order not yet started is refunded when changed
+      const list = c.prod.map(t => { const u = UNITS[t], on = c.cur === t;
+        return `<button type="button" class="mrow${t === pick ? ' on' : ''}" data-pick="${t}"><img src="${spriteURL(t, c.owner)}" alt=""><span class="mn">${u.name}</span><span class="ms">${u.cost} gold · ${u.turns} turn${u.turns > 1 ? 's' : ''}</span>${on ? `<span class="mc">mustering · ${c.left} left</span>` : ''}</button>`; }).join('');
+      const abil = d.abil.length ? d.abil.map(a => `<li>${esc(ABILITIES[a])}</li>`).join('') : '<li>No special ability.</li>';
+      let acts = '';
+      if (mine) {
+        acts += `<button type="button" class="primary" data-act="muster" ${c.cur === pick || gold + refund < d.cost ? 'disabled' : ''}>${c.cur === pick ? 'Already mustering' : `Muster ${d.name}`} <small>${d.cost} gold</small></button>`;
+        if (c.cur) acts += '<button type="button" data-act="stop">Stop muster</button>';
+        if (c.level < 3) acts += `<button type="button" data-act="up" ${gold < upgradeCost(c) ? 'disabled' : ''}>Build ${TIER_NAMES[c.level + 1].toLowerCase()} <small>${upgradeCost(c)} gold</small></button>`;
+      }
+      modal(`<div class="chead" style="--fc:${fac(c.owner).color}"><h2>${esc(c.name)}</h2><p>${esc(fac(c.owner).name)}${c.capital >= 0 ? ' · capital' : ''}</p></div>
+        <div class="cstats">${stat('Fortification', `${TIER_NAMES[c.level]} (${c.level} of 3)`)}${stat('Walls', `+${wallBonus(c)} to defenders`)}${stat('Income', `${cityIncome(c)} gold a turn`)}${stat(c.owner === HUMAN ? 'Your treasury' : 'Garrison', c.owner === HUMAN ? `${gold} gold` : `${gar.length} unit${gar.length === 1 ? '' : 's'}`)}</div>
+        <h3>Garrison <span class="muted">${gar.length} of ${4 * MAX_STACK}</span></h3>${gar.length ? `<div class="tiles wide">${gar.map(u => unitCard(u, c.owner, false, false)).join('')}</div>` : '<p class="muted">The city is undefended.</p>'}
+        <h3>${c.owner === HUMAN ? 'Muster' : 'What this city can muster'}</h3>
+        <div class="cgrid"><div class="mlist">${list}</div>
+          <div class="mdetail"><img src="${spriteURL(pick, c.owner)}" alt=""><div><h4>${d.name}</h4>
+            <div class="cstats tight">${stat('Strength', d.str)}${stat('Hits', d.hp)}${stat('Movement', d.mv)}${stat('Upkeep', `${Math.max(1, Math.round(d.cost / 40))} a turn`)}</div><ul>${abil}</ul></div></div></div>
+        <p class="cnote">${esc(note) || (mine ? 'A city musters one unit type at a time and repeats it each time one is finished, while you can pay.' : c.owner === HUMAN ? 'You can give orders here on your own turn.' : 'Take this city to muster these units yourself.')}</p>
+        <div class="row">${acts}<button type="button" data-act="done" class="${mine ? '' : 'primary'}">Done</button></div>`);
+      const b = await waitClick('button[data-act], button[data-pick]'); note = '';
+      if (b.dataset.pick) { pick = b.dataset.pick; SFX.play('click'); continue; }
+      const act = b.dataset.act;
+      if (act === 'done') break;
+      if (act === 'muster') { if (setProduction(c, pick)) { SFX.play('coin'); note = `${c.name} begins mustering ${d.name}.`; } else note = `Not enough gold for ${d.name}.`; }
+      if (act === 'stop') { setProduction(c, null); note = 'Muster stopped.'; }
+      if (act === 'up') { if (upgradeCity(c)) { SFX.play('build'); note = `${c.name} is now a ${TIER_NAMES[c.level].toLowerCase()}.`; } }
+      refresh();
+    }
+    closeModal(); dlgOpen = false; refresh();
+  }
   function showNotices() {
     if (!G.notices.length || !$('modal').hidden) return;
     const list = G.notices.splice(0);
@@ -307,6 +334,7 @@
       <li><b>Armies.</b> Click an army to select it, then click (or right-click) a destination. Up to ${MAX_STACK} units share a tile. Click a unit in the panel to leave it behind. Right-click a friendly army to merge.</li>
       <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross mountains. To cross water, use a bridge, fly, or muster a war galley in a coastal city: an army in the same stack as a galley sails with it, and an army on the shore can board a galley waiting next to it.</li>
       <li><b>Battle.</b> Units duel one at a time, weakest first, heroes last. Each exchange both roll a 20-sided die: a unit strikes true if it rolls its strength or less. If only one strikes true, the other loses a hit; otherwise they roll again. A unit dies when its hits run out, and survivors recover after the battle. Strength is the unit's own plus army bonuses: a hero's command, morale from a banner, city walls, terrain skills, spells, minus enemy fear. Strength is capped at 18. Hover an enemy to see the odds.</li>
+      <li><b>City window.</b> Click a city (or your selected army inside one, or the Manage city button) to open its window: garrison, fortification, what it can muster with each unit's details, and the actions available.</li>
       <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
       <li><b>Heroes.</b> An army led by a hero wears a crown. Heroes gain experience and choose an advance at each new level, cast spells with mana, and can search ruins (golden glow) for gold, relics or allies, which can kill them. In one of your cities a hero can seek a quest for a reward. A fallen hero's relics stay on the tile until another hero collects them.</li>
       <li><b>Sound.</b> The Sound and Music buttons in the side panel switch effects and the background tune on or off.</li>
@@ -348,6 +376,7 @@
   $('panel').addEventListener('click', e => {
     if (busy || !G) return;
     const b = e.target.closest('button'); if (!b) return; const d = b.dataset, s = sel && stackById(sel.stackId);
+    if (d.opencity) { cityDialog(G.cities[+d.opencity]); return; }
     if (d.perk && s) { const h = s.units.find(u => u.id === +d.hero); if (h && applyPerk(h, d.perk)) SFX.play('level'); sel.dm = null; }
     else if (d.quest && s) {
       const h = s.units.find(u => u.id === +d.quest), q = h && offerQuest(s, h);
