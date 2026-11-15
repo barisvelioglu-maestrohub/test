@@ -6,7 +6,7 @@ function aiEconomy(p) {
   const mine = G.cities.filter(c => c.owner === p).sort((a, b) => (b.capital >= 0) - (a.capital >= 0));
   for (const c of mine) {
     if (c.cur) continue;
-    const opts = c.prod.filter(t => UNITS[t].cost <= pl.gold);
+    const opts = c.prod.filter(t => UNITS[t].cost <= pl.gold && t !== 'galley');
     if (!opts.length) continue;
     opts.sort((a, b) => UNITS[b].str * UNITS[b].hp - UNITS[a].str * UNITS[a].hp);
     const choice = Math.random() < 0.3 ? pick(opts) : opts[0];
@@ -32,13 +32,14 @@ function aiGarrison(p, city) {
 
 async function aiStack(p, s) {
   const city = cityAt(s.x, s.y);
-  let movers = s.units.filter(u => u.mp >= 2);
+  let movers = s.units.filter(u => u.mp >= 2 && !has(u, 'ship'));
+  const crew = s.units.filter(u => !has(u, 'ship')).length;
   if (city && city.owner === p) {
     const need = aiGarrison(p, city);
     const sorted = cityUnits(city).sort((a, b) => (a.hero ? 50 : 0) + uStr(a) - ((b.hero ? 50 : 0) + uStr(b)));
     const stay = new Set(sorted.slice(0, need).map(u => u.id));
     movers = movers.filter(u => !stay.has(u.id));
-  } else if (movers.length < s.units.length) return; // keep field armies together
+  } else if (movers.length < crew) return; // keep field armies together
   if (!movers.length) return;
 
   const dm = dijkstraMap(movers, p, s.x, s.y);

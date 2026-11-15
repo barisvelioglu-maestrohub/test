@@ -131,7 +131,7 @@
         else if (home && home.owner === HUMAN) h += `<div class="row"><button type="button" data-quest="${hero.id}">Seek a quest in ${esc(home.name)}</button></div>`;
         if (hero.hero.items.length) h += '<p class="muted">' + hero.hero.items.map(k => { const it = ITEMS.find(i => i.key === k); return `${esc(it.name)} (${esc(it.desc)})`; }).join('<br>') + '</p>';
         h += '<div class="row">';
-        for (const sp of SPELLS) h += `<button type="button" data-spell="${sp.key}" data-hero="${hero.id}" title="${esc(sp.desc)}" ${hero.hero.mana < sp.cost ? 'disabled' : ''}>${sp.name} <small>${sp.cost}</small></button>`;
+        for (const sp of SPELLS.filter(q => !q.cls || q.cls.includes(hero.type))) h += `<button type="button" data-spell="${sp.key}" data-hero="${hero.id}" title="${esc(sp.desc)}" ${hero.hero.mana < sp.cost ? 'disabled' : ''}>${sp.name} <small>${sp.cost}</small></button>`;
         h += '</div>';
         const r = ruinAt(s.x, s.y);
         if (r && !r.explored) h += `<div class="row"><button type="button" class="primary" data-search="${hero.id}">Search ${esc(r.name)}</button></div>`;
@@ -197,7 +197,7 @@
       const path = pathTo(sel.dm, hover.x, hover.y);
       if (path && path.length) {
         const mp = units.map(u => u.mp); let reach = 0;
-        for (const [x, y] of path) { let ok = true; units.forEach((u, i) => { mp[i] -= stepCost(u, x, y); if (mp[i] < 0) ok = false; }); if (!ok) break; reach++; }
+        for (const [x, y] of path) { const o = stackAt(x, y), gc = groupCost(units, x, y, o && o.owner === HUMAN ? o : null); let ok = true; units.forEach((u, i) => { mp[i] -= payCost(u, x, y, gc); if (mp[i] < 0) ok = false; }); if (!ok) break; reach++; }
         const t = stackAt(hover.x, hover.y), c = cityAt(hover.x, hover.y), enemy = (t && t.owner !== HUMAN) || (c && c.owner !== HUMAN);
         preview = { path, reach, attack: enemy };
         const defU = c && c.owner !== HUMAN ? cityUnits(c) : t && t.owner !== HUMAN ? t.units : [];
@@ -252,7 +252,7 @@
     showNotices();
   };
   UI.askHero = async (cls, cost, home) => {
-    modal(`<h2>A hero seeks your banner</h2><div class="offer"><img src="${spriteURL(cls, HUMAN)}" alt=""><p>A wandering ${UNITS[cls].name.toLowerCase()} waits at the gates of ${esc(home.name)} and will swear to you for <b>${cost} gold</b>.<br><span class="muted">${cls === 'seer' ? 'Seers fight poorly but hold twice the mana.' : 'Champions are strong fighters with little mana.'}</span></p></div>
+    modal(`<h2>A hero seeks your banner</h2><div class="offer"><img src="${spriteURL(cls, HUMAN)}" alt=""><p>A wandering ${UNITS[cls].name.toLowerCase()} waits at the gates of ${esc(home.name)} and will swear to you for <b>${cost} gold</b>.<br><span class="muted">${UNITS[cls].blurb}</span></p></div>
       <div class="row"><button type="button" class="primary" data-a="y">Accept (${cost} gold)</button><button type="button" data-a="n">Send away</button></div>`);
     const b = await waitClick('button[data-a]'); closeModal(); return b.dataset.a === 'y';
   };
@@ -277,7 +277,7 @@
     done = true; btn.textContent = 'Continue'; await finished; closeModal();
   };
   UI.gameOver = () => {
-    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v3'); } catch (e) { /* ignore */ }
+    busy = true; refresh(); try { localStorage.removeItem('ashen-crowns-save-v4'); } catch (e) { /* ignore */ }
     const won = G.winner === HUMAN;
     modal(`<h2>${won ? 'The Vale is yours' : 'Your banner has fallen'}</h2><p>${won ? `After ${G.turn} turns every rival crown lies in the ash. ${esc(FACTIONS[HUMAN].name)} rules ${MAP_NAME}.` : `${esc(FACTIONS[HUMAN].name)} holds no city in ${MAP_NAME}. The war goes on without you.`}</p><div class="row"><button type="button" class="primary" data-a="new">New war</button></div>`);
     waitClick('button[data-a]').then(() => title());
@@ -301,7 +301,7 @@
     modal(`<h2>How to play</h2><ul class="help">
       <li><b>Goal.</b> Capture every rival city. A crown with no cities is destroyed.</li>
       <li><b>Armies.</b> Click an army to select it, then click (or right-click) a destination. Up to ${MAX_STACK} units share a tile. Click a unit in the panel to leave it behind. Right-click a friendly army to merge.</li>
-      <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross water and mountains; bridges carry everyone.</li>
+      <li><b>Terrain.</b> Roads are fastest. Forest, hills and marsh are slow. Only flyers cross mountains. To cross water, use a bridge, fly, or muster a war galley in a coastal city: an army in the same stack as a galley sails with it, and an army on the shore can board a galley waiting next to it.</li>
       <li><b>Battle.</b> Units duel one at a time, weakest first. The chance to land a hit is your strength against theirs. City walls, banners, heroes and terrain all add strength. Hover an enemy to see the odds.</li>
       <li><b>Cities.</b> A city covers four tiles and every army inside defends it together. Each city musters one unit type at a time and repeats it while you can pay. Cities have three tiers: palisade town, walled city and citadel. Each tier adds gold and +1 to the walls.</li>
       <li><b>Heroes.</b> An army led by a hero wears a crown. Heroes gain experience and choose an advance at each new level, cast spells with mana, and can search ruins (golden glow) for gold, relics or allies, which can kill them. In one of your cities a hero can seek a quest for a reward. A fallen hero's relics stay on the tile until another hero collects them.</li>
@@ -344,7 +344,7 @@
       if (q) { modal(`<h2>A quest for ${esc(h.hero.name)}</h2><p>${esc(q.text)}</p><p class="muted">Reward: ${QUEST_REWARDS[q.reward]}. A hero carries one quest at a time.</p><div class="row"><button type="button" class="primary" data-a="ok">Accept</button></div>`); waitClick('button[data-a]').then(closeModal); }
     }
     else if (d.unit && s) { const id = +d.unit; if (sel.ids.has(id)) sel.ids.delete(id); else sel.ids.add(id); sel.dm = null; }
-    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h && !castSpell(s, h, d.spell)) setHoverText('That spell cannot be cast now.'); if (d.spell === 'pack') selectStack(s); sel.dm = null; }
+    else if (d.spell && s) { const h = s.units.find(u => u.id === +d.hero); if (h && !castSpell(s, h, d.spell)) setHoverText('That spell cannot be cast now.'); if (SPELLS.find(q => q.key === d.spell).unit) selectStack(s); sel.dm = null; }
     else if (d.search && s) {
       const h = s.units.find(u => u.id === +d.search), r = h && searchRuin(s, h);
       if (r) { const more = G.notices.splice(0).filter(t => t !== r.text).map(t => `<p>${esc(t)}</p>`).join(''); modal(`<h2>${r.ok ? 'The ruin gives up its secret' : 'The ruin keeps its secret'}</h2><p>${esc(r.text)}</p>${more}<div class="row"><button type="button" class="primary" data-a="ok">Continue</button></div>`); waitClick('button[data-a]').then(closeModal); }

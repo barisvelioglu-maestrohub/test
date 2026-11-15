@@ -22,7 +22,7 @@ const has = (u, ab) => UNITS[u.type].abil.includes(ab);
 const itemSum = (u, k) => (u.hero ? u.hero.items.reduce((s, key) => s + (ITEMS.find(i => i.key === key)[k] || 0), 0) : 0);
 const perk = (u, k) => (u.hero ? u.hero.perks[k] : 0);
 const uStr = u => U(u).str + perk(u, 'str') + itemSum(u, 'str');
-const uMaxHp = u => U(u).hp + perk(u, 'hp') + itemSum(u, 'hp');
+const uMaxHp = u => U(u).hp + perk(u, 'hp') + itemSum(u, 'hp') + (u.tough ? 1 : 0);
 const uMaxMp = u => U(u).mv + 4 * perk(u, 'mv') + itemSum(u, 'mv');
 const uMaxMana = u => U(u).mana + 6 * perk(u, 'mana') + itemSum(u, 'mana');
 const heroLead = u => perk(u, 'lead') + itemSum(u, 'lead');
@@ -73,6 +73,22 @@ function stepCost(u, x, y) {
   return 2;
 }
 
+const isSea = (x, y) => MAP.t[y][x] === 'w' && !MAP.road[y][x] && MAP.cityGrid[idx(x, y)] < 0;
+/* Cost for a group to enter a tile. A ship carries its whole army over water; others may board a friendly ship (dest). */
+function groupCost(units, x, y, dest) {
+  if (!inb(x, y)) return Infinity;
+  const ships = units.some(u => has(u, 'ship'));
+  if (isSea(x, y)) {
+    if (ships) return 2;
+    if (units.every(u => has(u, 'flying'))) return 2;
+    return dest && dest.units.some(u => has(u, 'ship')) ? 4 : Infinity;
+  }
+  if (ships && MAP.cityGrid[idx(x, y)] < 0) return Infinity;
+  let c = 0; for (const u of units) { const k = stepCost(u, x, y); if (k > c) c = k; }
+  return c;
+}
+const payCost = (u, x, y, gc) => Math.min(stepCost(u, x, y), gc);
+
 function dijkstraMap(units, owner, sx, sy) {
   const N = MAP_W * MAP_H, dist = new Float32Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1);
   const occ = new Array(N); for (const s of G.stacks) occ[idx(s.x, s.y)] = s;
@@ -82,10 +98,10 @@ function dijkstraMap(units, owner, sx, sy) {
     const x = i % MAP_W, y = (i - x) / MAP_W;
     for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
       if (!ox && !oy) continue; const nx = x + ox, ny = y + oy; if (!inb(nx, ny)) continue;
-      let c = 0; for (const u of units) { const k = stepCost(u, nx, ny); if (k > c) c = k; }
+      const j = idx(nx, ny), o = occ[j], c = groupCost(units, nx, ny, o && o.owner === owner ? o : null);
       if (c === Infinity) continue;
-      const j = idx(nx, ny), nd = d + c; if (nd >= dist[j]) continue;
-      const o = occ[j], ci = MAP.cityGrid[j]; let terminal = false;
+      const nd = d + c; if (nd >= dist[j]) continue;
+      const ci = MAP.cityGrid[j]; let terminal = false;
       if (o && o.owner !== owner) terminal = true;
       else if (o && o.units.length + n > MAX_STACK) continue;
       if (ci >= 0 && G.cities[ci].owner !== owner) terminal = true;
@@ -115,14 +131,14 @@ async function moveGroup(stack, ids, path, delay = 0) {
   for (const [nx, ny] of path) {
     const units = cur.units.filter(u => idset.has(u.id));
     if (!units.length) return null;
-    if (units.some(u => u.mp < stepCost(u, nx, ny))) return cur;
-    const o = stackAt(nx, ny), city = cityAt(nx, ny);
+    const o = stackAt(nx, ny), city = cityAt(nx, ny), gc = groupCost(units, nx, ny, o && o.owner === cur.owner ? o : null);
+    if (units.some(u => u.mp < payCost(u, nx, ny, gc))) return cur;
     if ((o && o.owner !== cur.owner) || (city && city.owner !== cur.owner)) {
-      units.forEach(u => { u.mp -= stepCost(u, nx, ny); });
+      units.forEach(u => { u.mp -= payCost(u, nx, ny, gc); });
       return await attack(cur, units, nx, ny);
     }
     if (o && o.units.length + units.length > MAX_STACK) return cur;
-    units.forEach(u => { u.mp -= stepCost(u, nx, ny); });
+    units.forEach(u => { u.mp -= payCost(u, nx, ny, gc); });
     cur = relocate(cur, units, nx, ny);
     if (delay) await UI.tick(delay, cur);
     if (G.over) return cur;
@@ -144,6 +160,7 @@ function battleStr(u, own, enemy, x, y, isDef, city) {
     let w = wallBonus(city); if (enemy.some(v => has(v, 'siege'))) w = Math.max(0, w - 2);
     s += w; if (has(u, 'guard')) s += 1;
   }
+  if (isDef && own.some(v => has(v, 'rally'))) s += 1;
   if (u.bless) s += 1;
   if (enemy.some(v => has(v, 'terror'))) s -= 1;
   return Math.max(1, s);
@@ -230,7 +247,7 @@ function questDone(hero) {
   const free = ITEMS.filter(i => !G.itemsFound.includes(i.key));
   if (q.reward === 'relic' && free.length) { const it = pick(free); G.itemsFound.push(it.key); hero.hero.items.push(it.key); text += ` and is given the ${it.name} (${it.desc}).`; }
   else if (q.reward === 'allies' && st.units.length < MAX_STACK) {
-    const type = pick(['gryphon', 'troll', 'reaver', 'rider']), n = Math.min(2, MAX_STACK - st.units.length);
+    const type = pick(WILD_ALLIES.filter(t => t !== 'drake')), n = Math.min(UNITS[type].cost > 160 ? 1 : 2, MAX_STACK - st.units.length);
     for (let i = 0; i < n; i++) st.units.push(makeUnit(type)); text += ` and ${n === 1 ? 'a' : 'two'} ${UNITS[type].name} join${n === 1 ? 's' : ''} the army.`;
   } else { const gold = 160 + rnd(120); G.players[st.owner].gold += gold; text += ` and is paid ${gold} gold.`; }
   logMsg(text, st.owner); note(st.owner, text); gainXp([hero], 15);
@@ -314,11 +331,13 @@ function upgradeCity(city) {
 /* ---------- heroes ---------- */
 function castSpell(stack, hero, key) {
   const sp = SPELLS.find(s => s.key === key); if (!sp || hero.hero.mana < sp.cost) return false;
-  if (key === 'pack' && stack.units.length >= MAX_STACK) return false;
+  if (sp.cls && !sp.cls.includes(hero.type)) return false;
+  if (sp.unit && stack.units.length >= MAX_STACK) return false;
   hero.hero.mana -= sp.cost;
   if (key === 'march') stack.units.forEach(u => { u.mp += 6; });
   if (key === 'ward') stack.units.forEach(u => { u.bless = true; });
-  if (key === 'pack') stack.units.push(makeUnit('wolf'));
+  if (key === 'vigil') stack.units.forEach(u => { u.tough = true; });
+  if (sp.unit) stack.units.push(makeUnit(sp.unit));
   return true;
 }
 
@@ -341,7 +360,7 @@ function searchRuin(stack, hero) {
     const it = pick(free); G.itemsFound.push(it.key); hero.hero.items.push(it.key);
     text += ` and finds the ${it.name} (${it.desc}).`;
   } else if (roll < 0.65 && stack.units.length < MAX_STACK) {
-    const type = pick(['troll', 'gryphon', 'drake', 'reaver']), n = type === 'drake' ? 1 : Math.min(2, MAX_STACK - stack.units.length);
+    const type = pick(WILD_ALLIES), n = UNITS[type].cost > 160 ? 1 : Math.min(2, MAX_STACK - stack.units.length);
     for (let i = 0; i < n; i++) stack.units.push(makeUnit(type));
     text += ` and wins the loyalty of ${n === 1 ? 'a' : 'two'} ${UNITS[type].name}${n > 1 ? 's' : ''}.`;
   } else {
@@ -357,12 +376,13 @@ function newGame(human) {
   MAP = genMap();
   G = { turn: 0, cur: -1, nextId: 1, over: false, winner: null, log: [], itemsFound: [], drops: [], notices: [], stacks: [], cities: [], ruins: [],
     players: FACTIONS.map((f, i) => ({ id: i, human: i === human, gold: 150, alive: true, heroOffer: 5 + rnd(4) })) };
-  let ni = 0; const pool = ['levy', 'pike', 'archer', 'wolf', 'rider', 'ram', 'bearer', 'reaver', 'troll', 'gryphon', 'warden'];
+  let ni = 0; const pool = MUSTER_POOL;
+  const coastal = c => { for (let y = c.y - 1; y <= c.y + 2; y++) for (let x = c.x - 1; x <= c.x + 2; x++) if (inb(x, y) && isSea(x, y)) return true; return false; };
   MAP.cities.forEach((c, i) => {
     const city = { id: i, x: c.x, y: c.y, capital: c.cap, owner: c.cap, level: 1, prod: [], cur: null, left: 0, name: '' };
     if (c.cap >= 0) {
       const f = FACTIONS[c.cap]; city.name = f.capital; city.level = 2;
-      city.prod = ['levy', 'pike', 'archer', f.special];
+      city.prod = ['levy', 'pike', 'archer', f.special, f.special2];
       const s = { id: G.nextId++, x: c.x, y: c.y, owner: c.cap, units: [] }; G.stacks.push(s);
       s.units.push(makeHero(c.cap, f.heroCls), makeUnit('levy'), makeUnit('levy'), makeUnit('pike'));
     } else {
@@ -373,6 +393,7 @@ function newGame(human) {
       const s = { id: G.nextId++, x: c.x, y: c.y, owner: -1, units: [] }; G.stacks.push(s);
       const n = central ? 3 : 1 + rnd(2); for (let k = 0; k < n; k++) s.units.push(makeUnit(pick(central ? ['pike', 'archer', 'reaver'] : ['levy', 'levy', 'pike', 'archer'])));
     }
+    if (coastal(c)) city.prod.push('galley');
     G.cities.push(city);
   });
   MAP.ruins.forEach((r, i) => G.ruins.push({ x: r.x, y: r.y, name: RUIN_NAMES[i % RUIN_NAMES.length], explored: false }));
@@ -388,7 +409,7 @@ async function beginTurn(p) {
     if (worst) { ws.units = ws.units.filter(u => u !== worst); if (!ws.units.length) removeStack(ws); logMsg(`Unpaid, a ${U(worst).name} deserts ${fac(p).short}.`, p); }
   }
   for (const s of G.stacks) if (s.owner === p) for (const u of s.units) {
-    u.mp = uMaxMp(u); u.bless = false;
+    u.mp = uMaxMp(u); u.bless = false; u.tough = false;
     if (!u.hero) continue;
     u.hero.mana = Math.min(uMaxMana(u), u.hero.mana + 2);
     const q = u.hero.quest;
@@ -411,7 +432,7 @@ async function beginTurn(p) {
     const cost = 80 + 60 * heroes;
     pl.heroOffer = G.turn + 6 + rnd(5);
     if (home && heroes < 3 && cityUnits(home).length < 4 * MAX_STACK && pl.gold >= cost) {
-      const cls = pick(['champion', 'seer']);
+      const cls = pick(HERO_CLASSES);
       const yes = pl.human && !AUTO ? await UI.askHero(cls, cost, home) : pl.gold >= cost + 60;
       if (yes) {
         pl.gold -= cost; const h = makeHero(p, cls);
@@ -435,12 +456,12 @@ async function runTurns() {
   UI.gameOver();
 }
 
-function saveGame() { try { localStorage.setItem('ashen-crowns-save-v3', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
+function saveGame() { try { localStorage.setItem('ashen-crowns-save-v4', JSON.stringify(G)); } catch (e) { /* storage unavailable */ } }
 function loadGame() {
   try {
-    const raw = localStorage.getItem('ashen-crowns-save-v3'); if (!raw) return false;
+    const raw = localStorage.getItem('ashen-crowns-save-v4'); if (!raw) return false;
     const g = JSON.parse(raw); if (!g || !g.cities || g.over) return false;
     MAP = genMap(); G = g; return true;
   } catch (e) { return false; }
 }
-function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save-v3'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }
+function hasSave() { try { const r = localStorage.getItem('ashen-crowns-save-v4'); return !!r && !JSON.parse(r).over; } catch (e) { return false; } }

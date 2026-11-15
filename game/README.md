@@ -11,7 +11,8 @@ Open `index.html` in a browser. No server or install needed.
 
 - One fixed map (44 x 32 tiles) with 4 capitals, free cities, ruins, roads and bridges
 - Cities span four tiles, have three tiers (palisade town, walled city, citadel) and show their garrison
-- Armies of up to 8 units, 12 unit types with abilities (flying, siege, banner, volley, ...)
+- Armies of up to 8 units, 29 unit types (infantry, cavalry, faction specials, monsters, siege, support, a ship) with abilities
+- Six hero classes: champion, seer, ranger, priest, warlock, paladin
 - Heroes with experience, a choice of advance at each level, quests, relics that drop on death, mana and three spells
 - City mustering, fortifying, income and upkeep
 - Duel-based battles with walls, terrain and command bonuses, and an odds preview
