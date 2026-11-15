@@ -1,9 +1,18 @@
 'use strict';
 /* Original pixel art, drawn in code: unit sprites from character grids, terrain and cities procedurally. */
 
-const INK = '#1d1712', WOOD = '#8a5a2b', STEEL = '#b9bec6', MAIL = '#8d9299', SKIN = '#e8bd95', BONE = '#f2efe6', GOLD = '#e8c04a';
+const INK = '#2b211a', WOOD = '#8a5a2b', STEEL = '#b9bec6', MAIL = '#8d9299', SKIN = '#e8bd95', BONE = '#f2efe6', GOLD = '#e8c04a';
 const spriteCache = {};
 function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+/* Finishing pass for drawn art: pull the colours back and light the piece from the upper left. */
+function finish(c, sat = 0.7) {
+  const x = c.getContext('2d'); x.save(); x.setTransform(1, 0, 0, 1, 0, 0);
+  const im = x.getImageData(0, 0, c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { const l = 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]; d[i] = l + (d[i] - l) * sat; d[i + 1] = l + (d[i + 1] - l) * sat; d[i + 2] = l + (d[i + 2] - l) * sat; }
+  x.putImageData(im, 0, 0); x.globalCompositeOperation = 'source-atop';
+  const g = x.createLinearGradient(0, 0, c.width, c.height); g.addColorStop(0, 'rgba(255,240,210,.20)'); g.addColorStop(0.45, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(18,10,2,.42)');
+  x.fillStyle = g; x.fillRect(0, 0, c.width, c.height); x.restore(); return c;
+}
 
 /* Small drawing kit: every figure is laid out in a 64 x 64 box with inked outlines. */
 function pen(x) {
@@ -11,12 +20,12 @@ function pen(x) {
   g.P = (pts, fill, close = true) => { x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); if (close) x.closePath(); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
   g.C = (cx, cy, r, fill) => { x.beginPath(); x.arc(cx, cy, r, 0, 7); if (fill) { x.fillStyle = fill; x.fill(); } x.stroke(); };
   g.E = (cx, cy, rx, ry, fill, stroke = true) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fillStyle = fill; x.fill(); if (stroke) x.stroke(); };
-  g.L = (x1, y1, x2, y2, col, w = 2.5) => { x.save(); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.lineWidth = w + 2.4; x.strokeStyle = INK; x.stroke(); x.lineWidth = w; x.strokeStyle = col; x.stroke(); x.restore(); };
+  g.L = (x1, y1, x2, y2, col, w = 2.5) => { x.save(); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.lineWidth = w + 1.6; x.strokeStyle = INK; x.stroke(); x.lineWidth = w; x.strokeStyle = col; x.stroke(); x.restore(); };
   g.dot = (cx, cy, r, col) => { x.fillStyle = col; x.beginPath(); x.arc(cx, cy, r, 0, 7); x.fill(); };
   g.shade = pts => { x.save(); x.globalAlpha = 0.24; x.fillStyle = '#000'; x.beginPath(); pts.forEach(([a, b], i) => (i ? x.lineTo(a, b) : x.moveTo(a, b))); x.fill(); x.restore(); };
   g.arm = (x1, y1, x2, y2, col, w = 5) => { g.L(x1, y1, x2, y2, col, w); g.C(x2, y2, 2.6, SKIN); };
   g.cap = (cx, cy, r, col) => { x.beginPath(); x.arc(cx, cy, r, Math.PI, 0); x.closePath(); x.fillStyle = col; x.fill(); x.stroke(); };
-  g.eyes = (cx, cy) => { x.fillStyle = INK; x.fillRect(cx - 3.2, cy, 1.7, 2.2); x.fillRect(cx + 1.5, cy, 1.7, 2.2); };
+  g.eyes = (cx, cy) => { x.fillStyle = 'rgba(43,33,26,.8)'; x.fillRect(cx - 2.9, cy + 0.4, 1.2, 1.3); x.fillRect(cx + 1.7, cy + 0.4, 1.2, 1.3); };
   g.man = o => {
     const cx = o.cx ?? 32, w = o.w ?? 9, top = o.top ?? 25, hip = o.hip ?? 44, foot = 58;
     g.P([[cx - w + 2, hip - 1], [cx - 1, hip - 1], [cx - 2, foot], [cx - w, foot]], o.legs);
@@ -154,25 +163,21 @@ const DRAW = {
 function unitSprite(type, owner) {
   const key = type + ':' + owner; if (spriteCache[key]) return spriteCache[key];
   const c = mk(128, 128), x = c.getContext('2d');
-  x.scale(2, 2); x.lineJoin = 'round'; x.lineCap = 'round'; x.strokeStyle = INK; x.lineWidth = 1.8;
+  x.scale(2, 2); x.lineJoin = 'round'; x.lineCap = 'round'; x.strokeStyle = INK; x.lineWidth = 1.1;
   DRAW[type](pen(x), fac(owner));
-  return (spriteCache[key] = c);
+  return (spriteCache[key] = finish(c));
 }
 
 /* Army token: the unit's figure on a bevelled plate in its owner's colours. */
 function tokenSprite(type, owner) {
   const key = 'tok:' + type + ':' + owner; if (spriteCache[key]) return spriteCache[key];
   const f = fac(owner), c = mk(46, 48), x = c.getContext('2d');
-  x.fillStyle = 'rgba(8,10,12,.45)'; x.beginPath(); x.ellipse(24, 43, 19, 5, 0, 0, 7); x.fill();
-  const plate = (r, col) => { x.fillStyle = col; x.beginPath(); x.moveTo(3 + r, 2); x.lineTo(43 - r, 2); x.quadraticCurveTo(43, 2, 43, 2 + r); x.lineTo(43, 30); x.quadraticCurveTo(43, 40, 23, 44); x.quadraticCurveTo(3, 40, 3, 30); x.lineTo(3, 2 + r); x.quadraticCurveTo(3, 2, 3 + r, 2); x.fill(); };
-  plate(5, '#14110f');
-  x.save(); x.translate(23, 23); x.scale(0.9, 0.9); x.translate(-23, -23);
-  const g = x.createLinearGradient(0, 0, 46, 46); g.addColorStop(0, '#fff'); g.addColorStop(0.08, f.color); g.addColorStop(1, f.dark); plate(5, g);
-  x.restore();
-  x.save(); x.translate(23, 23); x.scale(0.78, 0.78); x.translate(-23, -23);
-  const g2 = x.createLinearGradient(0, 0, 0, 46); g2.addColorStop(0, 'rgba(20,18,16,.62)'); g2.addColorStop(1, 'rgba(20,18,16,.38)'); plate(4, g2);
-  x.restore();
-  x.imageSmoothingQuality = 'high'; x.drawImage(unitSprite(type, owner), 3, -1, 40, 40);
+  x.fillStyle = 'rgba(6,8,10,.5)'; x.fillRect(4, 5, 41, 42);
+  x.fillStyle = '#15110d'; x.fillRect(2, 2, 42, 43);
+  const g = x.createLinearGradient(0, 3, 0, 44); g.addColorStop(0, f.color); g.addColorStop(1, f.dark); x.fillStyle = g; x.fillRect(3.5, 3.5, 39, 40);
+  const v = x.createRadialGradient(23, 20, 4, 23, 23, 30); v.addColorStop(0, 'rgba(20,16,12,.42)'); v.addColorStop(1, 'rgba(20,16,12,.78)'); x.fillStyle = v; x.fillRect(6, 6, 34, 35);
+  x.fillStyle = 'rgba(255,245,220,.35)'; x.fillRect(3.5, 3.5, 39, 1.2); x.fillStyle = 'rgba(0,0,0,.35)'; x.fillRect(3.5, 42.3, 39, 1.2);
+  x.imageSmoothingQuality = 'high'; x.drawImage(unitSprite(type, owner), 4, 3, 38, 38);
   return (spriteCache[key] = c);
 }
 
@@ -182,7 +187,7 @@ const CITY_OX = 18, CITY_OY = 44;
 function citySprite(owner, level) {
   const key = 'city:' + owner + ':' + level; if (spriteCache[key]) return spriteCache[key];
   const f = fac(owner), c = mk(96 + 2 * CITY_OX, CITY_OY + 126), x = c.getContext('2d');
-  x.translate(CITY_OX, CITY_OY); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.3;
+  x.translate(CITY_OX, CITY_OY); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1;
   const wood = level === 1, tall = level === 3;
   const lin = (x0, x1, a, b, m) => { const g = x.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, a); if (m) g.addColorStop(0.5, m); g.addColorStop(1, b); return g; };
   const face = (a, w) => (wood ? lin(a, a + w, '#b98a52', '#6a4622', '#93683a') : lin(a, a + w, '#e4dcc8', '#7f7866', '#bdb5a0'));
@@ -219,12 +224,12 @@ function citySprite(owner, level) {
   ticks(48 - gw / 2, gb - 13, gw, 13, 3, wood ? '#8a6a3a' : '#7a6746');
   tower(-9, 96, 9, tall ? 23 : 21, rh); tower(105, 96, 9, tall ? 23 : 21, rh);                    // front towers
   if (tall) { flag(-9, 96 - rh - 12, 13); flag(105, 96 - rh - 12, 13); }
-  return (spriteCache[key] = c);
+  return (spriteCache[key] = finish(c, 0.62));
 }
 
 function ruinSprite(explored) {
   const key = 'ruin:' + explored; if (spriteCache[key]) return spriteCache[key];
-  const c = mk(48, 48), x = c.getContext('2d'); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1.4;
+  const c = mk(48, 48), x = c.getContext('2d'); x.lineJoin = 'round'; x.strokeStyle = INK; x.lineWidth = 1;
   const g = x.createLinearGradient(8, 0, 42, 0); g.addColorStop(0, '#d9d3c2'); g.addColorStop(0.5, '#a9a392'); g.addColorStop(1, '#6d6859');
   const poly = (pts, fill) => { x.beginPath(); pts.forEach(([p, q], i) => (i ? x.lineTo(p, q) : x.moveTo(p, q))); x.closePath(); x.fillStyle = fill; x.fill(); x.stroke(); };
   x.fillStyle = 'rgba(8,10,12,.4)'; x.beginPath(); x.ellipse(25, 42, 21, 5, 0, 0, 7); x.fill();
@@ -237,7 +242,7 @@ function ruinSprite(explored) {
   if (!explored) { const gl = x.createRadialGradient(20, 34, 0, 20, 34, 11); gl.addColorStop(0, 'rgba(255,236,150,1)'); gl.addColorStop(0.35, 'rgba(255,205,80,.7)'); gl.addColorStop(1, 'rgba(255,200,60,0)'); x.fillStyle = gl; x.fillRect(8, 22, 24, 24); }
   for (const [a, b, r] of [[36, 43, 3], [28, 44, 2.2], [6, 43, 2.6], [41, 44.5, 1.8]]) { x.beginPath(); x.arc(a, b, r, 0, 7); x.fillStyle = '#a9a392'; x.fill(); x.stroke(); }
   x.fillStyle = '#4f8a3c'; for (const [a, b, r] of [[10, 18, 2.4], [12, 21, 1.8], [29, 12, 2.2], [27, 16, 1.6], [42, 30, 2], [33, 26, 1.6], [9, 39, 2.4]]) { x.beginPath(); x.arc(a, b, r, 0, 7); x.fill(); }
-  return (spriteCache[key] = c);
+  return (spriteCache[key] = finish(c, 0.6));
 }
 
 /* Paints the whole land once as a shaded relief map: per-pixel terrain blending, a height field lit from the north-west,
@@ -262,8 +267,8 @@ function paintTerrain() {
     let r, g, bl;
     if (water > 0.5) {
       const dp = Math.min(1, (water - 0.5) * 2.4), wv = (m - 0.5) * 16 + (f - 0.5) * 8;
-      r = 78 - 50 * dp + wv; g = 158 - 86 * dp + wv; bl = 176 - 44 * dp + wv;
-      if (water < 0.56) { const k = 1 - (water - 0.5) / 0.06; r += (235 - r) * k * 0.7; g += (245 - g) * k * 0.7; bl += (250 - bl) * k * 0.7; }
+      r = 58 - 38 * dp + wv; g = 112 - 62 * dp + wv; bl = 134 - 42 * dp + wv;
+      if (water < 0.56) { const k = 1 - (water - 0.5) / 0.06; r += (205 - r) * k * 0.5; g += (218 - g) * k * 0.5; bl += (222 - bl) * k * 0.5; }
       hgt[i] = -1;
     } else {
       const inv = 1 / (1 - water), a0 = wg[0] * inv, a1 = wg[1] * inv, a2 = wg[2] * inv, a3 = wg[3] * inv, a5 = wg[5] * inv;
@@ -271,10 +276,10 @@ function paintTerrain() {
       let mr = 108 + 44 * rk, mg = 102 + 44 * rk, mb = 96 + 40 * rk;
       if (mh > 0.7) { const k = Math.min(1, (mh - 0.7) * 9); mr += (240 - mr) * k; mg += (243 - mg) * k; mb += (248 - mb) * k; }
       const pud = f > 0.6 && m > 0.45;
-      r = a0 * (74 + 36 * gk) + a1 * (50 + 14 * f) + a2 * (118 + 38 * m) + a3 * mr + a5 * (pud ? 50 : 84 + 20 * m);
-      g = a0 * (128 + 30 * gk) + a1 * (94 + 16 * f) + a2 * (142 + 4 * m) + a3 * mg + a5 * (pud ? 84 : 108 + 12 * m);
-      bl = a0 * (56 + 14 * gk) + a1 * (44 + 10 * f) + a2 * (72 + 20 * m) + a3 * mb + a5 * (pud ? 94 : 62 + 8 * m);
-      if (water > 0.34) { const k = Math.min(1, (water - 0.34) / 0.1); r += (216 + 14 * f - r) * k; g += (198 + 12 * f - g) * k; bl += (142 + 10 * f - bl) * k; }
+      r = a0 * (80 + 30 * gk) + a1 * (50 + 14 * f) + a2 * (120 + 30 * m) + a3 * mr + a5 * (pud ? 46 : 82 + 18 * m);
+      g = a0 * (106 + 24 * gk) + a1 * (82 + 14 * f) + a2 * (120 + 6 * m) + a3 * mg + a5 * (pud ? 72 : 96 + 10 * m);
+      bl = a0 * (50 + 12 * gk) + a1 * (42 + 10 * f) + a2 * (68 + 16 * m) + a3 * mb + a5 * (pud ? 80 : 58 + 8 * m);
+      if (water > 0.34) { const k = Math.min(1, (water - 0.34) / 0.1); r += (188 + 12 * f - r) * k; g += (170 + 10 * f - g) * k; bl += (126 + 8 * f - bl) * k; }
       hgt[i] = a0 * (0.10 + 0.02 * f) + a1 * (0.12 + 0.03 * f) + a5 * (0.07 + (pud ? -0.02 : 0.01 * f)) + a2 * (0.14 + 0.24 * m + 0.03 * f) + a3 * (mh + 0.04 * f);
     }
     const o = i * 4; d[o] = r; d[o + 1] = g; d[o + 2] = bl; d[o + 3] = 255;
@@ -282,8 +287,8 @@ function paintTerrain() {
   for (let py = 1; py < H - 1; py++) for (let px = 1; px < W - 1; px++) {
     const i = py * W + px, h = hgt[i]; if (h < 0) continue;
     const l = hgt[i - 1], rr = hgt[i + 1], up = hgt[i - W], dn = hgt[i + W];
-    let s = 1 + ((rr < 0 ? h : rr) - (l < 0 ? h : l) + (dn < 0 ? h : dn) - (up < 0 ? h : up)) * 7;
-    s = s < 0.5 ? 0.5 : s > 1.45 ? 1.45 : s;
+    let s = 1 + ((rr < 0 ? h : rr) - (l < 0 ? h : l) + (dn < 0 ? h : dn) - (up < 0 ? h : up)) * 9;
+    s = s < 0.42 ? 0.42 : s > 1.4 ? 1.4 : s;
     const o = i * 4; d[o] = Math.min(255, d[o] * s); d[o + 1] = Math.min(255, d[o + 1] * s); d[o + 2] = Math.min(255, d[o + 2] * s);
   }
   x.putImageData(img, 0, 0);
@@ -302,7 +307,7 @@ function paintTerrain() {
     }
     x.stroke(); x.setLineDash([]);
   };
-  strokeRoads(false, 9, 'rgba(70,52,28,.55)'); strokeRoads(false, 6, '#c8a971'); strokeRoads(false, 2, 'rgba(232,210,160,.7)', [5, 9]);
+  strokeRoads(false, 7, 'rgba(52,38,20,.6)'); strokeRoads(false, 4.5, '#a88c5c'); strokeRoads(false, 1.5, 'rgba(206,186,140,.5)', [5, 9]);
   x.lineCap = 'butt'; strokeRoads(true, 12, '#3b2816'); strokeRoads(true, 9, '#9a6c3a'); strokeRoads(true, 9, 'rgba(50,32,16,.6)', [1, 4]);
 
   // Forests and marsh reeds, drawn back to front.
@@ -323,11 +328,11 @@ function paintTerrain() {
     x.fillStyle = 'rgba(8,24,12,.33)'; x.beginPath(); x.ellipse(o.x + o.r * 0.5, o.y + o.r * 0.55, o.r, o.r * 0.55, 0, 0, 7); x.fill();
     if (o.k === 'pine') {
       for (let j = 0; j < 3; j++) { const w = o.r * (1 - j * 0.24), top = o.y - o.r * 1.5 - j * o.r * 0.5 + o.r;
-        x.beginPath(); x.moveTo(o.x - w, top + o.r * 0.8); x.lineTo(o.x, top - o.r * 0.5); x.lineTo(o.x + w, top + o.r * 0.8); x.closePath(); x.fillStyle = '#1f4f2c'; x.fill();
-        x.beginPath(); x.moveTo(o.x - w, top + o.r * 0.8); x.lineTo(o.x, top - o.r * 0.5); x.lineTo(o.x, top + o.r * 0.8); x.closePath(); x.fillStyle = '#3a7a3e'; x.fill(); }
+        x.beginPath(); x.moveTo(o.x - w, top + o.r * 0.8); x.lineTo(o.x, top - o.r * 0.5); x.lineTo(o.x + w, top + o.r * 0.8); x.closePath(); x.fillStyle = '#183f24'; x.fill();
+        x.beginPath(); x.moveTo(o.x - w, top + o.r * 0.8); x.lineTo(o.x, top - o.r * 0.5); x.lineTo(o.x, top + o.r * 0.8); x.closePath(); x.fillStyle = '#2f6535'; x.fill(); }
     } else {
       const g = x.createRadialGradient(o.x - o.r * 0.35, o.y - o.r * 0.45, 1, o.x, o.y, o.r);
-      g.addColorStop(0, '#86bf58'); g.addColorStop(0.55, '#3f8438'); g.addColorStop(1, '#1b4722');
+      g.addColorStop(0, '#6c9648'); g.addColorStop(0.5, '#33682e'); g.addColorStop(1, '#14351a');
       x.fillStyle = g; x.beginPath(); x.arc(o.x, o.y, o.r, 0, 7); x.fill();
     }
   }

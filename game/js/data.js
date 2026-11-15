@@ -6,20 +6,20 @@ const MAP_W = 44, MAP_H = 32, MAX_STACK = 8, MAP_SEED = 90417;
 const MAP_NAME = 'The Sundered Vale';
 
 const FACTIONS = [
-  { name: 'Sunmarch Compact', short: 'Sunmarch', color: '#e0ad2b', dark: '#8f6712', capital: 'Auremont',
+  { name: 'Sunmarch Compact', short: 'Sunmarch', color: '#c9a03a', dark: '#6f5216', capital: 'Auremont',
     special: 'rider', heroCls: 'champion', blurb: 'Plains lords with swift lancers and deep coffers.',
     heroes: ['Ser Aldous Vane', 'Marta of the Reeds', 'Corwin Hale', 'Dame Isolde Farrow'] },
-  { name: 'Thornwild Kindred', short: 'Thornwild', color: '#49b257', dark: '#1f6a31', capital: 'Eldbough',
+  { name: 'Thornwild Kindred', short: 'Thornwild', color: '#4f9257', dark: '#234f2d', capital: 'Eldbough',
     special: 'warden', heroCls: 'seer', blurb: 'Forest folk whose wardens strike from the trees.',
     heroes: ['Ysolde Greenmantle', 'Fenn Ashroot', 'Lirael Mossgrave', 'Old Tam Bracken'] },
-  { name: 'Cinderhold Clans', short: 'Cinderhold', color: '#d9523a', dark: '#822717', capital: 'Brazenhearth',
+  { name: 'Cinderhold Clans', short: 'Cinderhold', color: '#b34a36', dark: '#662016', capital: 'Brazenhearth',
     special: 'reaver', heroCls: 'champion', blurb: 'Hill clans. Slow, stubborn and very hard to kill.',
     heroes: ['Brakka Stonejaw', 'Hildr Emberbraid', 'Dorn Ironkettle', 'Ragna Coalhand'] },
-  { name: 'Veilmere Court', short: 'Veilmere', color: '#8f6ad6', dark: '#4c3391', capital: 'Nocthaven',
+  { name: 'Veilmere Court', short: 'Veilmere', color: '#7d68b3', dark: '#3f2f72', capital: 'Nocthaven',
     special: 'gryphon', heroCls: 'seer', blurb: 'Sorcerer-princes who rule the sky on gryphon wings.',
     heroes: ['Maelis the Pale', 'Prince Orrin Veil', 'Sabeth Nightwell', 'Calix Duskmere'] },
 ];
-const NEUTRAL = { name: 'Free Cities', short: 'Free', color: '#b9b3a2', dark: '#6f6a5c' };
+const NEUTRAL = { name: 'Free Cities', short: 'Free', color: '#a8a394', dark: '#5f5b50' };
 
 /* str = battle strength, hp = hits it can take, mv = movement points, turns = build time */
 const UNITS = {

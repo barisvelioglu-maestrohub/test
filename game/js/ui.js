@@ -30,10 +30,10 @@
   }
   function badge(px, py, n, owner, dim) {
     const f = fac(owner);
-    ctx.fillStyle = '#14161a'; ctx.fillRect(px + TS - 17, py + 1, 16, 15);
-    ctx.fillStyle = dim ? f.dark : f.color; ctx.fillRect(px + TS - 16, py + 2, 14, 13);
-    ctx.font = '700 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#14161a'; ctx.fillText(String(n), px + TS - 9, py + 9);
+    ctx.fillStyle = f.color; ctx.fillRect(px + TS - 17, py, 15, 14);
+    ctx.fillStyle = '#15110d'; ctx.fillRect(px + TS - 16, py + 1, 13, 12);
+    ctx.font = '700 11px Georgia, serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = dim ? '#8d8676' : '#efe6cf'; ctx.fillText(String(n), px + TS - 9.5, py + 7.5);
   }
   function render() {
     if (!G || !terrain) return;
@@ -57,7 +57,7 @@
       ctx.drawImage(tokenSprite(top.type, s.owner), px + 1, py);
       if (s.units.some(u => u.hero)) { // a crown marks an army led by a hero
         ctx.beginPath(); ctx.moveTo(px - 1, py + 9); ctx.lineTo(px - 2, py - 2); ctx.lineTo(px + 3, py + 3); ctx.lineTo(px + 7, py - 4); ctx.lineTo(px + 11, py + 3); ctx.lineTo(px + 16, py - 2); ctx.lineTo(px + 15, py + 9); ctx.closePath();
-        ctx.fillStyle = '#f3cf5b'; ctx.fill(); ctx.strokeStyle = '#1d1712'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.fillStyle = '#d9b545'; ctx.fill(); ctx.strokeStyle = '#15110d'; ctx.lineWidth = 1.2; ctx.stroke();
         ctx.fillStyle = '#c0392b'; ctx.fillRect(px + 6, py + 4, 2.5, 2.5);
       }
       badge(px, py, s.units.length, s.owner, idle);
@@ -86,7 +86,7 @@
     ctx.restore();
     drawMini();
   }
-  const MINI_COL = { g: '#4f9a3c', f: '#2d6e2a', h: '#8aa64a', m: '#8d8a84', w: '#2a66ab', s: '#56703b' };
+  const MINI_COL = { g: '#5f7f42', f: '#34582f', h: '#8a8a52', m: '#86827a', w: '#2f5c80', s: '#55683f' };
   let miniBase = null;
   function drawMini() {
     const k = mini.width / MAP_W;
